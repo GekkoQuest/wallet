@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Wallet</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+    <div class="text-center mb-20">
+        <div style="font-size: 4rem; margin-bottom: 20px;">🔐</div>
+        <h2>Welcome Back</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">
+            Enter your email to receive a secure login code
+        </p>
+    </div>
+
+    <form action="/send-code" method="post" id="loginForm">
+        <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input type="email"
+                   id="email"
+                   name="email"
+                   placeholder="your@email.com"
+                   required
+                   autocomplete="email" />
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full">
+            <span id="loginBtnText">📧 Send Login Code</span>
+            <span id="loginBtnLoader" class="loading hidden"></span>
+        </button>
+    </form>
+
+    <div th:if="${error}" class="error-message mt-20" th:text="${error}">
+        Error message will appear here
+    </div>
+
+    <div class="text-center mt-20">
+        <p style="color: var(--text-secondary); font-size: 0.875rem;">
+            🔒 Your data is encrypted end-to-end<br>
+            We never store your passwords in plain text
+        </p>
+    </div>
+
+    <div th:replace="~{fragments/footer :: footer}"></div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+
+        // Focus email input on page load
+        emailInput.focus();
+
+        form.addEventListener('submit', (e) => {
+            const email = emailInput.value.trim();
+
+            if (!email) {
+                e.preventDefault();
+                showError('Please enter your email address');
+                return;
+            }
+
+            if (!isValidEmail(email)) {
+                e.preventDefault();
+                showError('Please enter a valid email address');
+                return;
+            }
+
+            // Show loading state
+            setButtonLoading(true);
+        });
+
+        emailInput.addEventListener('input', () => {
+            clearError();
+        });
+    });
+
+    function isValidEmail(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+
+    function setButtonLoading(isLoading) {
+        const textElement = document.getElementById('loginBtnText');
+        const loaderElement = document.getElementById('loginBtnLoader');
+        const button = textElement.closest('button');
+
+        if (isLoading) {
+            textElement.classList.add('hidden');
+            loaderElement.classList.remove('hidden');
+            button.disabled = true;
+        } else {
+            textElement.classList.remove('hidden');
+            loaderElement.classList.add('hidden');
+            button.disabled = false;
+        }
+    }
+
+    function showError(message) {
+        let errorDiv = document.querySelector('.error-message');
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message mt-20';
+            document.querySelector('form').after(errorDiv);
+        }
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+    }
+
+    function clearError() {
+        const errorDiv = document.querySelector('.error-message');
+        if (errorDiv) {
+            errorDiv.classList.add('hidden');
+        }
+    }
+</script>
+</body>
+</html>
