@@ -4,15 +4,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import quest.gekko.wallet.config.properties.ApplicationProperties;
 import quest.gekko.wallet.exception.AuthenticationException;
 
 import jakarta.mail.MessagingException;
+import jakarta.mail.Transport;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.Session;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Properties;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +30,12 @@ public class EmailService {
     private String fromEmail;
 
     public void sendVerificationCode(String toEmail, String code) {
+        log.info("=== EMAIL DEBUGGING START ===");
+        log.info("Attempting to send verification code to: {}", maskEmail(toEmail));
+
+        // Debug mail sender configuration
+        debugMailConfiguration();
+
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -37,7 +47,15 @@ public class EmailService {
             String htmlContent = buildVerificationEmailHtml(code);
             helper.setText(htmlContent, true);
 
+            // Debug the message before sending
+            debugMessage(message);
+
+            log.info("Calling mailSender.send()...");
             mailSender.send(message);
+            log.info("mailSender.send() completed without exception");
+
+            // Try to verify if email was actually sent
+            verifyEmailSent(message);
 
             log.info("Verification code email sent successfully to: {}", maskEmail(toEmail));
         } catch (MessagingException e) {
@@ -46,6 +64,105 @@ public class EmailService {
         } catch (Exception e) {
             log.error("Unexpected error sending verification code to: {}", maskEmail(toEmail), e);
             throw new AuthenticationException("Email service unavailable", e);
+        }
+
+        log.info("=== EMAIL DEBUGGING END ===");
+    }
+
+    private void debugMailConfiguration() {
+        log.info("=== MAIL CONFIGURATION DEBUG ===");
+
+        if (mailSender instanceof JavaMailSenderImpl) {
+            JavaMailSenderImpl javaMailSender = (JavaMailSenderImpl) mailSender;
+
+            log.info("Host: {}", javaMailSender.getHost());
+            log.info("Port: {}", javaMailSender.getPort());
+            log.info("Username: {}", javaMailSender.getUsername());
+            log.info("Password: {}", javaMailSender.getPassword() != null ? "SET" : "NOT_SET");
+            log.info("Default encoding: {}", javaMailSender.getDefaultEncoding());
+            log.info("Protocol: {}", javaMailSender.getProtocol());
+
+            Properties props = javaMailSender.getJavaMailProperties();
+            log.info("JavaMail Properties:");
+            props.forEach((key, value) -> log.info("  {}: {}", key, value));
+
+            // Test connection
+            try {
+                log.info("Testing SMTP connection...");
+                javaMailSender.testConnection();
+                log.info("SMTP connection test: SUCCESS");
+            } catch (Exception e) {
+                log.error("SMTP connection test: FAILED", e);
+            }
+        } else {
+            log.warn("MailSender is not JavaMailSenderImpl: {}", mailSender.getClass().getName());
+        }
+
+        log.info("From email: {}", fromEmail);
+        log.info("App name: {}", appProperties.getName());
+        log.info("=== END MAIL CONFIGURATION DEBUG ===");
+    }
+
+    private void debugMessage(MimeMessage message) throws MessagingException {
+        log.info("=== MESSAGE DEBUG ===");
+        log.info("Message ID: {}", message.getMessageID());
+        log.info("From: {}", java.util.Arrays.toString(message.getFrom()));
+        log.info("To: {}", java.util.Arrays.toString(message.getAllRecipients()));
+        log.info("Subject: {}", message.getSubject());
+        log.info("Content Type: {}", message.getContentType());
+        log.info("Size: {} bytes", message.getSize());
+
+        // Try to get the session
+        Session session = message.getSession();
+        if (session != null) {
+            log.info("Session debug: {}", session.getDebug());
+            Properties sessionProps = session.getProperties();
+            log.info("Session properties:");
+            sessionProps.forEach((key, value) -> log.info("  {}: {}", key, value));
+        }
+
+        log.info("=== END MESSAGE DEBUG ===");
+    }
+
+    private void verifyEmailSent(MimeMessage message) {
+        log.info("=== VERIFYING EMAIL SENT ===");
+
+        try {
+            // Try to get transport information
+            Session session = message.getSession();
+            if (session != null) {
+                Transport transport = session.getTransport("smtp");
+                log.info("Transport class: {}", transport.getClass().getName());
+                log.info("Transport connected: {}", transport.isConnected());
+            }
+        } catch (Exception e) {
+            log.warn("Could not verify transport status", e);
+        }
+
+        log.info("=== END VERIFICATION ===");
+    }
+
+    // Add a test method to manually verify email sending
+    public void sendTestEmail(String toEmail) {
+        log.info("=== SENDING TEST EMAIL ===");
+
+        try {
+            // Create a simple test message
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject("Test Email - " + LocalDateTime.now());
+            helper.setText("This is a test email sent at " + LocalDateTime.now(), false);
+
+            log.info("Sending simple test email...");
+            mailSender.send(message);
+            log.info("Test email sent successfully");
+
+        } catch (Exception e) {
+            log.error("Test email failed", e);
+            throw new RuntimeException("Test email failed", e);
         }
     }
 
