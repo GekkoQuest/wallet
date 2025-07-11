@@ -417,6 +417,37 @@
         }
     };
 
+    // Function to update modal for new vs returning users
+    const updateMasterPasswordModal = (isFirstTime) => {
+        const modalTitle = document.getElementById("modalTitle");
+        const modalDisclaimer = document.querySelector(".modal-disclaimer");
+        const unlockBtnText = document.getElementById("unlockBtnText");
+        const masterPasswordInput = document.getElementById("masterPasswordInput");
+
+        if (isFirstTime) {
+            // First-time user - setting up vault
+            modalTitle.innerHTML = "🔐 Set Your Master Password";
+            unlockBtnText.textContent = "🔒 Create Vault";
+            masterPasswordInput.placeholder = "Create a strong master password";
+
+            modalDisclaimer.innerHTML = `
+                🔒 <strong>Important:</strong> Your master password is the key to your vault.
+                It encrypts all your passwords and never leaves your browser.
+                <strong>Choose a strong, memorable password - you cannot recover it if forgotten!</strong>
+            `;
+        } else {
+            // Returning user - unlocking existing vault
+            modalTitle.innerHTML = "🔑 Unlock Your Vault";
+            unlockBtnText.textContent = "🔓 Unlock Vault";
+            masterPasswordInput.placeholder = "Enter your master password";
+
+            modalDisclaimer.innerHTML = `
+                🔒 Your master password is never sent to our servers.
+                All encryption happens locally in your browser.
+            `;
+        }
+    };
+
     // Master Password Functions
     const submitMasterPassword = async () => {
         const pw = document.getElementById("masterPasswordInput").value.trim();
@@ -425,7 +456,10 @@
         errorElement.classList.add('hidden');
 
         if (!pw) {
-            showToast('Please enter your master password', 'error');
+            const message = isFirstTimeVault ?
+                'Please create your master password' :
+                'Please enter your master password';
+            showToast(message, 'error');
             return;
         }
 
@@ -444,13 +478,16 @@
             if (isFirstTimeVault) {
                 await secureKeyStorage.set(pw);
                 document.getElementById("masterPasswordModal").classList.add('hidden');
-                showToast('Welcome! Your vault is ready to use.');
+                showToast('Welcome! Your secure vault has been created.');
             } else {
                 await unlockVault(pw);
             }
         } catch (error) {
             console.error('Master password submission failed:', error);
-            showToast('An error occurred. Please try again.', 'error');
+            const message = isFirstTimeVault ?
+                'Failed to create vault. Please try again.' :
+                'An error occurred. Please try again.';
+            showToast(message, 'error');
         } finally {
             setButtonLoading('unlockBtn', false);
             // Clear the input for security
@@ -677,6 +714,9 @@
 
     // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
+        // Update modal content based on user status
+        updateMasterPasswordModal(isFirstTimeVault);
+
         // Edit button event listeners
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', () => {
