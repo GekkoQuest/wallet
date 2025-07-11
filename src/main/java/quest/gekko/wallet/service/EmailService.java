@@ -14,6 +14,8 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.Transport;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.Session;
+import quest.gekko.wallet.util.SecurityUtil;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Properties;
@@ -31,7 +33,7 @@ public class EmailService {
 
     public void sendVerificationCode(String toEmail, String code) {
         log.info("=== EMAIL DEBUGGING START ===");
-        log.info("Attempting to send verification code to: {}", maskEmail(toEmail));
+        log.info("Attempting to send verification code to: {}", SecurityUtil.maskEmail(toEmail));
 
         // Debug mail sender configuration
         debugMailConfiguration();
@@ -57,12 +59,12 @@ public class EmailService {
             // Try to verify if email was actually sent
             verifyEmailSent(message);
 
-            log.info("Verification code email sent successfully to: {}", maskEmail(toEmail));
+            log.info("Verification code email sent successfully to: {}", SecurityUtil.maskEmail(toEmail));
         } catch (MessagingException e) {
-            log.error("Failed to send verification code email to: {}", maskEmail(toEmail), e);
+            log.error("Failed to send verification code email to: {}", SecurityUtil.maskEmail(toEmail), e);
             throw new AuthenticationException("Failed to send verification email", e);
         } catch (Exception e) {
-            log.error("Unexpected error sending verification code to: {}", maskEmail(toEmail), e);
+            log.error("Unexpected error sending verification code to: {}", SecurityUtil.maskEmail(toEmail), e);
             throw new AuthenticationException("Email service unavailable", e);
         }
 
@@ -72,9 +74,7 @@ public class EmailService {
     private void debugMailConfiguration() {
         log.info("=== MAIL CONFIGURATION DEBUG ===");
 
-        if (mailSender instanceof JavaMailSenderImpl) {
-            JavaMailSenderImpl javaMailSender = (JavaMailSenderImpl) mailSender;
-
+        if (mailSender instanceof JavaMailSenderImpl javaMailSender) {
             log.info("Host: {}", javaMailSender.getHost());
             log.info("Port: {}", javaMailSender.getPort());
             log.info("Username: {}", javaMailSender.getUsername());
@@ -184,10 +184,10 @@ public class EmailService {
 
             mailSender.send(message);
 
-            log.info("Security alert email sent to: {} for: {}", maskEmail(toEmail), alertType);
+            log.info("Security alert email sent to: {} for: {}", SecurityUtil.maskEmail(toEmail), alertType);
 
         } catch (Exception e) {
-            log.error("Failed to send security alert to: {}", maskEmail(toEmail), e);
+            log.error("Failed to send security alert to: {}", SecurityUtil.maskEmail(toEmail), e);
             // Don't throw exception for security alerts to avoid breaking the flow
         }
     }
@@ -316,28 +316,5 @@ public class EmailService {
                 </body>
                 </html>
                 """, appName, alertType, details, clientIp, formattedTime, supportEmail, appName);
-    }
-
-    /**
-     * Masks email for logging privacy
-     */
-    private String maskEmail(String email) {
-        if (email == null || email.length() < 3) {
-            return "***";
-        }
-
-        int atIndex = email.indexOf('@');
-        if (atIndex <= 0) {
-            return "***";
-        }
-
-        String username = email.substring(0, atIndex);
-        String domain = email.substring(atIndex);
-
-        if (username.length() <= 2) {
-            return "*".repeat(username.length()) + domain;
-        }
-
-        return username.charAt(0) + "*".repeat(username.length() - 2) + username.charAt(username.length() - 1) + domain;
     }
 }
