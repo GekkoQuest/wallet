@@ -13,7 +13,7 @@ This project implements a **zero-knowledge architecture** where the server never
 ### Authentication Security
 - **Email-based passwordless authentication** using time-limited verification codes
 - **Rate limiting** on both email sending and code verification attempts
-- **Secure session management** with automatic timeouts and proper invalidation
+- **Theoretically secure session management** with automatic timeouts and proper invalidation
 - **Failed attempt tracking** with temporary account lockouts
 
 ### Input Security
@@ -46,11 +46,11 @@ This project implements a **zero-knowledge architecture** where the server never
 
 2. **Environment variables**
    ```bash
-   export SPRING_DATA_MONGODB_URI="mongodb://localhost:27017/wallet"
-   export SPRING_MAIL_HOST="smtp.your-provider.com"
-   export SPRING_MAIL_PORT="587"
-   export SPRING_MAIL_USERNAME="your-email@domain.com"
-   export SPRING_MAIL_PASSWORD="your-app-password"
+   export SPRING_DATA_MONGODB_URI=URI_HERE
+   export SPRING_MAIL_HOST=HOST_HERE
+   export SPRING_MAIL_PORT=PORT_HERE
+   export SPRING_MAIL_USERNAME=USERNAME_HERE
+   export SPRING_MAIL_PASSWORD=PASSWORD_HERE
    ```
 
 3. **Run application**
@@ -84,7 +84,7 @@ server.servlet.session.cookie.same-site=strict
 
 ### Backend Architecture
 - **Spring Boot 3.5** with Spring Security for authentication and authorization
-- **MongoDB** for encrypted password storage with proper indexing
+- **MongoDB** for encrypted password storage
 - **Spring Data** repositories with custom security queries
 - **Input validation** using JSR-303 annotations and custom validators
 - **Transaction management** ensuring data consistency
@@ -103,7 +103,7 @@ server.servlet.session.cookie.same-site=strict
 5. Server stores encrypted blob without decryption capability
 
 ### Security Measures
-- **Session fixation protection** through proper session management
+- **Session fixation protection** through session management
 - **Brute force protection** via rate limiting and account lockouts
 - **Audit trail** for all security-related operations
 - **Input sanitization** preventing XSS and injection attacks
