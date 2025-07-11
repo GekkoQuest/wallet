@@ -1,50 +1,49 @@
 # Wallet
 
-## Security Architecture
+A personal password manager project built with Spring Boot as a learning exercise to explore web security and client-side encryption concepts.
 
-This project implements a **zero-knowledge architecture** where the server never has access to unencrypted password data. All sensitive operations are performed client-side using the Web Crypto API.
+**🔗 [View Live Demo](https://wallet.gekko.quest)**
+
+## What Is This?
+
+This project implements a **zero-knowledge password manager** where I experimented with keeping encrypted data on the server while ensuring the server never has access to unencrypted passwords. All sensitive operations happen client-side using the Web Crypto API.
 
 ### Client-Side Encryption
-- **AES-GCM encryption** with 256-bit keys for all password data
+- **AES-GCM encryption** with 256-bit keys for password data
 - **PBKDF2 key derivation** with 100,000 iterations and random salts
-- **Unique IV per entry** ensuring each encryption is cryptographically unique
-- **Master password never transmitted** - all encryption/decryption happens in the browser
+- **Unique IV per entry** so each encryption is different
+- **Master password stays in browser** - never sent to the server
 
-### Authentication Security
-- **Email-based passwordless authentication** using time-limited verification codes
-- **Rate limiting** on both email sending and code verification attempts
-- **Theoretically secure session management** with automatic timeouts and proper invalidation
-- **Failed attempt tracking** with temporary account lockouts
+### Authentication Approach
+- **Email-based login** using verification codes instead of passwords
+- **Rate limiting** to prevent spam and brute force attempts
+- **Session management** with timeouts and proper cleanup
+- **Failed attempt tracking** with temporary lockouts
 
-### Input Security
-- **Comprehensive input validation** preventing XSS and injection attacks
-- **Input sanitization** for all user-provided data
-- **Base64 validation** for encrypted data integrity
-- **CSRF protection** through Spring Security
-
-### Application Security
-- **Security audit logging** for all authentication and password operations
-- **IP address tracking** for suspicious activity detection
+### Security Features
+- **Input validation** to prevent XSS and injection attacks
+- **Input sanitization** for all user data
+- **Security audit logging** for tracking authentication events
 - **Thread-safe rate limiting** with automatic cleanup
-- **Configurable CORS policies** for cross-origin protection
+- **CORS configuration** for cross-origin protection
 
-## Quick Start
+## Getting Started
 
-### Prerequisites
+### What You Need
 
 - Java 21+
 - MongoDB
 - SMTP email server
 
-### Installation
+### Running Locally
 
-1. **Clone and setup**
+1. **Clone the project**
    ```bash
    git clone https://github.com/yourusername/password-manager.git
    cd password-manager
    ```
 
-2. **Environment variables**
+2. **Set up environment**
    ```bash
    export SPRING_DATA_MONGODB_URI=URI_HERE
    export SPRING_MAIL_HOST=HOST_HERE
@@ -53,16 +52,14 @@ This project implements a **zero-knowledge architecture** where the server never
    export SPRING_MAIL_PASSWORD=PASSWORD_HERE
    ```
 
-3. **Run application**
+3. **Start the application**
    ```bash
    ./mvnw spring-boot:run
    ```
 
-4. **Access at** `http://localhost:8080`
+4. **Try it out** at `http://localhost:8080`
 
-## Security Configuration
-
-Key security settings in `application.properties`:
+## Configuration
 
 ```properties
 # Rate Limiting
@@ -80,92 +77,81 @@ server.servlet.session.cookie.secure=true
 server.servlet.session.cookie.same-site=strict
 ```
 
-## Technical Implementation
+## How It Works
 
-### Backend Architecture
-- **Spring Boot 3.5** with Spring Security for authentication and authorization
-- **MongoDB** for encrypted password storage
-- **Spring Data** repositories with custom security queries
-- **Input validation** using JSR-303 annotations and custom validators
-- **Transaction management** ensuring data consistency
+### Backend
+- **Spring Boot 3.5** with Spring Security for the foundation
+- **MongoDB** for storing encrypted password data
+- **Input validation** using annotations and custom validators
+- **Transaction management** to keep data consistent
 
-### Frontend Security
-- **Vanilla JavaScript** with Web Crypto API for encryption operations
-- **No external dependencies** reducing attack surface
-- **Content Security Policy** ready implementation
-- **Secure session handling** with proper timeout management
+### Frontend
+- **Vanilla JavaScript** with Web Crypto API for encryption
+- **No external dependencies** to keep it simple
+- **Session handling** with proper timeouts
 
-### Encryption Flow
-1. User enters master password (never transmitted)
-2. PBKDF2 derives encryption key with random salt
-3. Password data encrypted with AES-GCM and unique IV
-4. Only encrypted data, IV, and salt sent to server
-5. Server stores encrypted blob without decryption capability
+### Encryption Process
+1. User creates a master password (never leaves their browser)
+2. PBKDF2 creates an encryption key with a random salt
+3. Password data gets encrypted with AES-GCM and a unique IV
+4. Only the encrypted data, IV, and salt go to the server
+5. Server stores the encrypted blob without being able to decrypt it
 
 ### Security Measures
-- **Session fixation protection** through session management
-- **Brute force protection** via rate limiting and account lockouts
-- **Audit trail** for all security-related operations
-- **Input sanitization** preventing XSS and injection attacks
-- **Error handling** without information leakage
+- **Session protection** against fixation attacks
+- **Rate limiting** to prevent brute force attempts
+- **Audit logging** for security events
+- **Input cleaning** to prevent XSS attacks
+- **Safe error handling** without leaking information
 
 ## Development
 
-### Running in Development
+### Running in Dev Mode
 ```bash
 export SPRING_PROFILES_ACTIVE=dev
 ./mvnw spring-boot:run
 ```
 
-### Building for Production
+### Building
 ```bash
 ./mvnw clean package
 java -jar target/wallet-0.0.1-SNAPSHOT.jar
 ```
 
-### Security Testing
-The application includes comprehensive security measures suitable for testing:
-- Rate limiting validation
-- Session security testing
-- Input validation verification
-- Encryption/decryption testing
-
 ## Project Structure
 
 ```
 src/main/java/quest/gekko/wallet/
-├── config/          # Security and application configuration
-├── controller/      # Request handling with security validation
-├── entity/          # MongoDB entities with proper indexing
-├── exception/       # Custom security exceptions
-├── repository/      # Secure data access layer
+├── config/          # Security and app configuration
+├── controller/      # Web controllers with security validation
+├── entity/          # MongoDB entities
+├── exception/       # Custom exception handling
+├── repository/      # Data access layer
 ├── service/         # Business logic with security controls
 └── util/           # Security utility functions
 
 src/main/resources/
-├── static/css/     # Frontend styling
-├── templates/      # Secure Thymeleaf templates
+├── static/css/     # Frontend styles
+├── templates/      # Thymeleaf templates
 └── application.properties
 ```
 
-## Important Security Notice
+## Important Notes
 
-**This is a demonstration project** designed to showcase secure coding practices and modern web security implementation.
+**This is a learning project** - I built it to better understand security concepts and improve my development skills.
 
-### Educational Value
-- Demonstrates client-side encryption techniques
-- Shows proper Spring Security implementation
-- Illustrates secure session management
-- Examples of input validation and sanitization
+### What it MAY be good for
+- Learning about client-side encryption
+- Understanding Spring Security
+- Exploring secure coding practices
+- Testing security features
 
-### Production Considerations
-For production use with real passwords, additional measures would be required:
-- Professional security audit
-- Hardware security modules (HSM)
-- Multi-factor authentication
-- Comprehensive backup and disaster recovery
-- Security monitoring and alerting
-- Regular penetration testing
+### Not meant for
+- Storing real sensitive passwords
+- Production use without additional security measures
+- Commercial or enterprise use
+
+For real password storage, use established tools like Bitwarden, 1Password, or similar professionally audited solutions.
 
 ## License
 
