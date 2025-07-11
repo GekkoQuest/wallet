@@ -147,10 +147,8 @@ public class AuthenticationController {
     }
 
     private void createUserSession(final HttpSession session, final User user) {
-        // Clear any existing session data first
-        session.invalidate();
+        clearSessionAttributes(session);
 
-        // Set session attributes
         session.setAttribute("email", user.getEmail());
         session.setAttribute("userId", user.getId());
         session.setAttribute("loginTime", System.currentTimeMillis());
@@ -160,6 +158,16 @@ public class AuthenticationController {
                 session.getId(),
                 SecurityUtil.maskEmail(user.getEmail()),
                 user.getId());
+    }
+
+    private void clearSessionAttributes(final HttpSession session) {
+        try {
+            session.removeAttribute("email");
+            session.removeAttribute("userId");
+            session.removeAttribute("loginTime");
+        } catch (Exception e) {
+            log.warn("Failed to clear session attributes: {}", e.getMessage());
+        }
     }
 
     private void invalidateSession(final HttpSession session) {

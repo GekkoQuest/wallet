@@ -180,7 +180,7 @@ public class VaultController {
                 email != null ? SecurityUtil.maskEmail(email) : "null",
                 loginTime != null ? "present" : "null");
 
-        if (email == null) {
+            if (email == null) {
             log.warn("Session validation failed - no email in session");
             return null;
         }

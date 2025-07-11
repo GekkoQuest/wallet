@@ -173,13 +173,13 @@ public class AuthenticationService {
         }
     }
 
-    private void updateUserLoginInfo(User user, String clientIp) {
+    private void updateUserLoginInfo(final User user, final String clientIp) {
         user.setLastLoginAt(LocalDateTime.now());
         user.setLastLoginIp(clientIp);
         user.resetFailedAttempts();
     }
 
-    private User createNewUser(String email, String clientIp) {
+    private User createNewUser(final String email, final String clientIp) {
         return User.builder()
                 .email(email)
                 .createdAt(LocalDateTime.now())

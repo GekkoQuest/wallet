@@ -11,6 +11,7 @@ import quest.gekko.wallet.entity.PasswordEntry;
 import quest.gekko.wallet.exception.VaultAccessException;
 import quest.gekko.wallet.exception.InputValidationException;
 import quest.gekko.wallet.repository.PasswordEntryRepository;
+import quest.gekko.wallet.util.SecurityUtil;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,26 +21,25 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class PasswordManagementService {
+
     private final PasswordEntryRepository passwordEntryRepository;
-    private final InputSanitizationService sanitizationService;
-    private final SecurityAuditService auditService;
-    private final ApplicationProperties appProperties;
+    private final InputSanitizationService inputSanitizationService;
+    private final SecurityAuditService securityAuditService;
+    private final ApplicationProperties applicationProperties;
 
     /**
-     * Saves a new encrypted password entry
+     * Saves a new encrypted password entry with comprehensive validation
      */
     @Transactional
     public PasswordEntry savePassword(String email, String name, String encrypted, String iv, String salt) {
         validatePasswordInputs(email, name, encrypted, iv, salt);
 
         long existingCount = passwordEntryRepository.countByEmail(email);
-
-        if (existingCount >= appProperties.getVault().getMaxPasswordsPerUser()) {
+        if (existingCount >= applicationProperties.getVault().getMaxPasswordsPerUser()) {
             throw new VaultAccessException("Maximum number of passwords reached for this account");
         }
 
-        String sanitizedName = sanitizationService.sanitizePasswordName(name);
-
+        String sanitizedName = inputSanitizationService.sanitizePasswordName(name);
         if (sanitizedName == null || sanitizedName.trim().isEmpty()) {
             throw new InputValidationException("Invalid password name provided");
         }
@@ -56,30 +56,30 @@ public class PasswordManagementService {
                     .build();
 
             PasswordEntry savedEntry = passwordEntryRepository.save(entry);
-            log.info("Password entry created for user: {} with name: {}", maskEmail(email), sanitizedName);
+            log.info("Password entry created for user: {} with name: {}",
+                    SecurityUtil.maskEmail(email), sanitizedName);
 
             return savedEntry;
 
         } catch (Exception e) {
-            log.error("Failed to save password for user: {}", maskEmail(email), e);
+            log.error("Failed to save password for user: {}", SecurityUtil.maskEmail(email), e);
             throw new VaultAccessException("Failed to save password entry", e);
         }
     }
 
+    /**
+     * Updates an existing encrypted password entry
+     */
     @Transactional
     public PasswordEntry editPassword(String id, String encrypted, String iv, String salt, String email) {
-        // Validate inputs
-        validatePasswordInputs(email, "dummy", encrypted, iv, salt);
-
-        if (id == null || id.trim().isEmpty()) {
-            throw new InputValidationException("Password ID is required");
-        }
+        validateEditInputs(id, encrypted, iv, salt, email);
 
         try {
             Optional<PasswordEntry> entryOpt = passwordEntryRepository.findByIdAndEmail(id, email);
 
             if (entryOpt.isEmpty()) {
-                log.warn("Unauthorized password edit attempt by user: {} for ID: {}", maskEmail(email), id);
+                log.warn("Unauthorized password edit attempt by user: {} for ID: {}",
+                        SecurityUtil.maskEmail(email), id);
                 throw new SecurityException("Password not found or access denied");
             }
 
@@ -90,120 +90,153 @@ public class PasswordManagementService {
             entry.recordModification();
 
             PasswordEntry savedEntry = passwordEntryRepository.save(entry);
-            log.info("Password entry updated for user: {} with ID: {}", maskEmail(email), id);
+            log.info("Password entry updated for user: {} with ID: {}",
+                    SecurityUtil.maskEmail(email), id);
 
             return savedEntry;
 
         } catch (SecurityException e) {
             throw e; // Re-throw security exceptions
         } catch (Exception e) {
-            log.error("Failed to edit password for user: {} with ID: {}", maskEmail(email), id, e);
+            log.error("Failed to edit password for user: {} with ID: {}",
+                    SecurityUtil.maskEmail(email), id, e);
             throw new VaultAccessException("Failed to update password entry", e);
         }
     }
 
+    /**
+     * Deletes a password entry with proper authorization checks
+     */
     @Transactional
     public void deletePassword(String id, String email) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new InputValidationException("Password ID is required");
-        }
-
-        if (email == null || email.trim().isEmpty()) {
-            throw new InputValidationException("User email is required");
-        }
+        validateDeleteInputs(id, email);
 
         try {
             Optional<PasswordEntry> entryOpt = passwordEntryRepository.findByIdAndEmail(id, email);
 
             if (entryOpt.isEmpty()) {
-                log.warn("Unauthorized password deletion attempt by user: {} for ID: {}", maskEmail(email), id);
+                log.warn("Unauthorized password deletion attempt by user: {} for ID: {}",
+                        SecurityUtil.maskEmail(email), id);
                 throw new SecurityException("Password not found or access denied");
             }
 
             passwordEntryRepository.delete(entryOpt.get());
-            log.info("Password entry deleted for user: {} with ID: {}", maskEmail(email), id);
+            log.info("Password entry deleted for user: {} with ID: {}",
+                    SecurityUtil.maskEmail(email), id);
 
         } catch (SecurityException e) {
             throw e; // Re-throw security exceptions
         } catch (Exception e) {
-            log.error("Failed to delete password for user: {} with ID: {}", maskEmail(email), id, e);
+            log.error("Failed to delete password for user: {} with ID: {}",
+                    SecurityUtil.maskEmail(email), id, e);
             throw new VaultAccessException("Failed to delete password entry", e);
         }
     }
 
+    /**
+     * Retrieves all password entries for a user
+     */
+    @Transactional(readOnly = true)
     public List<PasswordEntry> getPasswordsByEmail(String email) {
-        if (email == null || email.trim().isEmpty()) {
-            throw new InputValidationException("User email is required");
-        }
+        validateEmailInput(email);
 
         try {
             List<PasswordEntry> entries = passwordEntryRepository.findByEmailOrderByCreatedAtDesc(email);
 
-            // Update access tracking for retrieved entries
-            entries.forEach(entry -> {
-                entry.recordAccess();
-                passwordEntryRepository.save(entry);
-            });
+            log.debug("Retrieved {} password entries for user: {}",
+                    entries.size(), SecurityUtil.maskEmail(email));
 
-            log.debug("Retrieved {} password entries for user: {}", entries.size(), maskEmail(email));
             return entries;
 
         } catch (Exception e) {
-            log.error("Failed to retrieve passwords for user: {}", maskEmail(email), e);
+            log.error("Failed to retrieve passwords for user: {}", SecurityUtil.maskEmail(email), e);
             throw new VaultAccessException("Failed to load password vault", e);
         }
     }
 
+    /**
+     * Searches password entries by name pattern
+     */
+    @Transactional(readOnly = true)
     public List<PasswordEntry> searchPasswordsByName(String email, String searchPattern) {
-        if (email == null || email.trim().isEmpty()) {
-            throw new InputValidationException("User email is required");
-        }
+        validateEmailInput(email);
 
         if (searchPattern == null || searchPattern.trim().isEmpty()) {
             return getPasswordsByEmail(email);
         }
 
         try {
-            String sanitizedPattern = sanitizationService.sanitizePasswordName(searchPattern);
+            String sanitizedPattern = inputSanitizationService.sanitizePasswordName(searchPattern);
+            if (sanitizedPattern == null) {
+                return getPasswordsByEmail(email);
+            }
+
             List<PasswordEntry> entries = passwordEntryRepository
                     .findByEmailAndNameContainingIgnoreCase(email, sanitizedPattern);
 
             log.debug("Found {} password entries matching pattern '{}' for user: {}",
-                    entries.size(), sanitizedPattern, maskEmail(email));
+                    entries.size(), sanitizedPattern, SecurityUtil.maskEmail(email));
 
             return entries;
 
         } catch (Exception e) {
             log.error("Failed to search passwords for user: {} with pattern: {}",
-                    maskEmail(email), searchPattern, e);
+                    SecurityUtil.maskEmail(email), searchPattern, e);
             throw new VaultAccessException("Failed to search password vault", e);
         }
     }
 
+    /**
+     * Gets recently accessed passwords within specified hours
+     */
+    @Transactional(readOnly = true)
     public List<PasswordEntry> getRecentlyAccessedPasswords(String email, int hours) {
-        if (email == null || email.trim().isEmpty()) {
-            throw new InputValidationException("User email is required");
-        }
+        validateEmailInput(email);
 
         try {
             LocalDateTime since = LocalDateTime.now().minusHours(hours);
             List<PasswordEntry> entries = passwordEntryRepository.findRecentlyAccessedByEmail(email, since);
 
             log.debug("Found {} recently accessed password entries for user: {}",
-                    entries.size(), maskEmail(email));
+                    entries.size(), SecurityUtil.maskEmail(email));
 
             return entries;
 
         } catch (Exception e) {
-            log.error("Failed to get recently accessed passwords for user: {}", maskEmail(email), e);
+            log.error("Failed to get recently accessed passwords for user: {}", SecurityUtil.maskEmail(email), e);
             throw new VaultAccessException("Failed to load recent password access", e);
         }
     }
 
-    public VaultStatistics getVaultStatistics(String email) {
-        if (email == null || email.trim().isEmpty()) {
-            throw new InputValidationException("User email is required");
+    /**
+     * Records password access for audit and statistics
+     */
+    @Transactional
+    public void recordPasswordAccess(String passwordId, String email) {
+        try {
+            Optional<PasswordEntry> entryOpt = passwordEntryRepository.findByIdAndEmail(passwordId, email);
+
+            if (entryOpt.isPresent()) {
+                PasswordEntry entry = entryOpt.get();
+                entry.recordAccess();
+                passwordEntryRepository.save(entry);
+
+                log.debug("Recorded access for password ID: {} by user: {}",
+                        passwordId, SecurityUtil.maskEmail(email));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to record password access for user: {} and ID: {}",
+                    SecurityUtil.maskEmail(email), passwordId, e);
+            // Don't throw exception here as it's not critical for the main operation
         }
+    }
+
+    /**
+     * Gets vault statistics for a user
+     */
+    @Transactional(readOnly = true)
+    public VaultStatistics getVaultStatistics(String email) {
+        validateEmailInput(email);
 
         try {
             long totalPasswords = passwordEntryRepository.countByEmail(email);
@@ -213,29 +246,62 @@ public class PasswordManagementService {
             return VaultStatistics.builder()
                     .totalPasswords(totalPasswords)
                     .recentlyAccessedCount(recentAccess.size())
-                    .maxPasswordsAllowed(appProperties.getVault().getMaxPasswordsPerUser())
+                    .maxPasswordsAllowed(applicationProperties.getVault().getMaxPasswordsPerUser())
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to get vault statistics for user: {}", maskEmail(email), e);
+            log.error("Failed to get vault statistics for user: {}", SecurityUtil.maskEmail(email), e);
             throw new VaultAccessException("Failed to load vault statistics", e);
         }
     }
 
+    // Validation methods
     private void validatePasswordInputs(String email, String name, String encrypted, String iv, String salt) {
+        validateEmailInput(email);
+
+        if (name == null || name.trim().isEmpty()) {
+            throw new InputValidationException("Password name is required");
+        }
+
+        if (name.length() > applicationProperties.getVault().getMaxPasswordNameLength()) {
+            throw new InputValidationException("Password name is too long");
+        }
+
+        if (!inputSanitizationService.isValidPasswordName(name)) {
+            throw new InputValidationException("Invalid password name format");
+        }
+
+        validateEncryptionData(encrypted, iv, salt);
+    }
+
+    private void validateEditInputs(String id, String encrypted, String iv, String salt, String email) {
+        if (id == null || id.trim().isEmpty()) {
+            throw new InputValidationException("Password ID is required");
+        }
+
+        validateEmailInput(email);
+        validateEncryptionData(encrypted, iv, salt);
+    }
+
+    private void validateDeleteInputs(String id, String email) {
+        if (id == null || id.trim().isEmpty()) {
+            throw new InputValidationException("Password ID is required");
+        }
+
+        validateEmailInput(email);
+    }
+
+    private void validateEmailInput(String email) {
         if (email == null || email.trim().isEmpty()) {
             throw new InputValidationException("User email is required");
         }
 
-        if (!sanitizationService.isValidEmail(email)) {
+        if (!SecurityUtil.isValidEmail(email)) {
             throw new InputValidationException("Invalid email format");
         }
+    }
 
-        if (name != null && (name.length() > appProperties.getVault().getMaxPasswordNameLength() ||
-                !sanitizationService.isValidPasswordName(name))) {
-            throw new InputValidationException("Invalid password name");
-        }
-
+    private void validateEncryptionData(String encrypted, String iv, String salt) {
         if (encrypted == null || encrypted.trim().isEmpty()) {
             throw new InputValidationException("Encrypted password data is required");
         }
@@ -249,40 +315,11 @@ public class PasswordManagementService {
         }
 
         // Validate base64 format for encrypted data
-        if (!isValidBase64(encrypted) || !isValidBase64(iv) || !isValidBase64(salt)) {
+        if (!inputSanitizationService.isValidBase64(encrypted) ||
+                !inputSanitizationService.isValidBase64(iv) ||
+                !inputSanitizationService.isValidBase64(salt)) {
             throw new InputValidationException("Invalid encryption data format");
         }
-    }
-
-    private boolean isValidBase64(String str) {
-        try {
-            return str.matches("^[A-Za-z0-9+/]*={0,2}$") && str.length() % 4 == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * Masks email for logging privacy
-     */
-    private String maskEmail(String email) {
-        if (email == null || email.length() < 3) {
-            return "***";
-        }
-
-        int atIndex = email.indexOf('@');
-        if (atIndex <= 0) {
-            return "***";
-        }
-
-        String username = email.substring(0, atIndex);
-        String domain = email.substring(atIndex);
-
-        if (username.length() <= 2) {
-            return "*".repeat(username.length()) + domain;
-        }
-
-        return username.charAt(0) + "*".repeat(username.length() - 2) + username.charAt(username.length() - 1) + domain;
     }
 
     @Builder
@@ -297,7 +334,7 @@ public class PasswordManagementService {
         }
 
         public double getUsagePercentage() {
-            return (double) totalPasswords / maxPasswordsAllowed * 100;
+            return maxPasswordsAllowed > 0 ? (double) totalPasswords / maxPasswordsAllowed * 100 : 0;
         }
     }
 }
