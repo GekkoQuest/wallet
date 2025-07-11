@@ -31,7 +31,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(applicationProperties.getSecurity().getSession().getMaxConcurrent())
                         .and()
-                        .sessionFixation().migrateSession()
+                        .sessionFixation().none()
                 ).headers(headers -> headers
                         .frameOptions().deny()
                         .contentTypeOptions().and()

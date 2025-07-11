@@ -2,13 +2,11 @@ package quest.gekko.wallet.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,9 +17,14 @@ import quest.gekko.wallet.service.AuthenticationService;
 import quest.gekko.wallet.service.SecurityAuditService;
 import quest.gekko.wallet.util.SecurityUtil;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+
 @Controller
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class AuthenticationController {
     private final AuthenticationService authenticationService;
     private final SecurityAuditService securityAuditService;
@@ -53,17 +56,14 @@ public class AuthenticationController {
             authenticationService.sendVerificationCode(sanitizedEmail, clientIp);
             model.addAttribute("email", sanitizedEmail);
             return "verify";
-
         } catch (final RateLimitExceededException e) {
             model.addAttribute("error", "Too many requests. Please wait before trying again.");
             log.warn("Rate limit exceeded for email: {} from IP: {}", SecurityUtil.maskEmail(sanitizedEmail), clientIp);
             return "login";
-
         } catch (final AuthenticationException e) {
             model.addAttribute("error", "Unable to send verification code. Please check your email and try again.");
             log.warn("Authentication error for email: {} from IP: {}: {}", SecurityUtil.maskEmail(sanitizedEmail), clientIp, e.getMessage());
             return "login";
-
         } catch (final Exception e) {
             model.addAttribute("error", "An unexpected error occurred. Please try again.");
             log.error("Unexpected error sending verification code for email: {} from IP: {}", SecurityUtil.maskEmail(sanitizedEmail), clientIp, e);
@@ -72,11 +72,12 @@ public class AuthenticationController {
     }
 
     @PostMapping("/verify")
-    public String verifyCode(@RequestParam @NotBlank @Email final String email,
-                             @RequestParam @NotBlank @Pattern(regexp = "^[0-9]{6}$", message = "Code must be 6 digits") final String code,
-                             final HttpServletRequest request,
-                             final HttpSession session,
-                             final Model model) {
+    public String verifyCode(
+            @RequestParam @NotBlank @Email final String email,
+            @RequestParam @NotBlank @Pattern(regexp = "^[0-9]{6}$", message = "Code must be 6 digits") final String code,
+            final HttpServletRequest request,
+            final HttpSession session,
+            final Model model) {
         final String clientIp = SecurityUtil.getClientIpAddress(request);
         final String sanitizedEmail = SecurityUtil.sanitizeEmail(email);
         final String sanitizedCode = SecurityUtil.sanitizeVerificationCode(code);
@@ -94,7 +95,8 @@ public class AuthenticationController {
                     .map(user -> {
                         log.info("Authentication successful for user: {}", SecurityUtil.maskEmail(user.getEmail()));
 
-                        createUserSession(session, user);
+                        // Create session without invalidating the current one
+                        setupUserSession(session, user);
 
                         securityAuditService.logSecurityEvent(
                                 SecurityAuditService.SecurityEventType.SUCCESSFUL_AUTHENTICATION,
@@ -111,7 +113,6 @@ public class AuthenticationController {
                         model.addAttribute("email", sanitizedEmail);
                         return "verify";
                     });
-
         } catch (final RateLimitExceededException e) {
             model.addAttribute("error", "Too many verification attempts. Please request a new code.");
             model.addAttribute("email", sanitizedEmail);
@@ -146,18 +147,28 @@ public class AuthenticationController {
         return "redirect:/";
     }
 
-    private void createUserSession(final HttpSession session, final User user) {
-        clearSessionAttributes(session);
+    private void setupUserSession(final HttpSession session, final User user) {
+        try {
+            // Clear any existing session data without invalidating the session
+            clearSessionAttributes(session);
 
-        session.setAttribute("email", user.getEmail());
-        session.setAttribute("userId", user.getId());
-        session.setAttribute("loginTime", System.currentTimeMillis());
-        session.setMaxInactiveInterval(30 * 60); // 30 minutes
+            // Set new session attributes
+            session.setAttribute("email", user.getEmail());
+            session.setAttribute("userId", user.getId());
+            session.setAttribute("loginTime", System.currentTimeMillis());
+            session.setMaxInactiveInterval(30 * 60); // 30 minutes
 
-        log.info("Session created - ID: {}, Email: {}, UserId: {}",
-                session.getId(),
-                SecurityUtil.maskEmail(user.getEmail()),
-                user.getId());
+            log.info("Session created - ID: {}, Email: {}, UserId: {}",
+                    session.getId(),
+                    SecurityUtil.maskEmail(user.getEmail()),
+                    user.getId());
+        } catch (final IllegalStateException e) {
+            log.error("Session already invalidated, cannot set attributes: {}", e.getMessage());
+            throw new RuntimeException("Session management error - please try logging in again", e);
+        } catch (final Exception e) {
+            log.error("Unexpected error during session setup: {}", e.getMessage(), e);
+            throw new RuntimeException("Session setup failed - please try again", e);
+        }
     }
 
     private void clearSessionAttributes(final HttpSession session) {
@@ -165,7 +176,7 @@ public class AuthenticationController {
             session.removeAttribute("email");
             session.removeAttribute("userId");
             session.removeAttribute("loginTime");
-        } catch (Exception e) {
+        } catch (final Exception e) {
             log.warn("Failed to clear session attributes: {}", e.getMessage());
         }
     }
