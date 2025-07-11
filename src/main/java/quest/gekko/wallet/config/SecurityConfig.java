@@ -15,46 +15,38 @@ import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import quest.gekko.wallet.config.properties.ApplicationProperties;
 
 import java.util.List;
-
-/*
-TODO: Fix. If enabled, this completely breaks the website's dashboard and code verification
-Causes an insane amount of redirects too.
- */
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+    private final ApplicationProperties applicationProperties;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                // Disable all Spring Security auth
-                .sessionManagement(session -> session
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .maximumSessions(-1) // Unlimited sessions
+                        .maximumSessions(applicationProperties.getSecurity().getSession().getMaxConcurrent())
                         .and()
-                        .sessionFixation().none() // Don't interfere with sessions
-                )
-                .headers(headers -> headers
+                        .sessionFixation().migrateSession()
+                ).headers(headers -> headers
                         .frameOptions().deny()
                         .contentTypeOptions().and()
                         .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                                 .maxAgeInSeconds(31536000)
                                 .includeSubDomains(true)
                                 .preload(true)
-                        )
-                        .referrerPolicy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
-                )
-                // Disable CSRF
-                .csrf(AbstractHttpConfigurer::disable)
+                        ).referrerPolicy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
+                        .and()
+                        .cacheControl().and() // Add cache control headers
+                ).csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authz -> authz
-                        .anyRequest().permitAll() // Allow everything
-                )
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // No logout handling by Spring Security
+                        .requestMatchers("/css/**", "/js/**", "/images/**", "/terms", "/privacy").permitAll()
+                        .anyRequest().permitAll() // For demo purposes - consider restricting in production
+                ).cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .logout(AbstractHttpConfigurer::disable);
 
         return http.build();
@@ -62,13 +54,18 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("https://wallet.gekko.quest", "http://localhost:8080"));
-        configuration.setAllowedMethods(List.of("GET", "POST"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        final CorsConfiguration configuration = new CorsConfiguration();
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        final String[] allowedOrigins = applicationProperties.getSecurity().getCors().getAllowedOrigins().split(",");
+        configuration.setAllowedOrigins(List.of(allowedOrigins));
+
+        final String[] allowedMethods = applicationProperties.getSecurity().getCors().getAllowedMethods().split(",");
+        configuration.setAllowedMethods(List.of(allowedMethods));
+
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(applicationProperties.getSecurity().getCors().isAllowCredentials());
+
+        final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

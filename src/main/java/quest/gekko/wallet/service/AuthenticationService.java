@@ -3,6 +3,7 @@ package quest.gekko.wallet.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.gekko.wallet.config.properties.ApplicationProperties;
@@ -12,6 +13,7 @@ import quest.gekko.wallet.exception.AuthenticationException;
 import quest.gekko.wallet.exception.RateLimitExceededException;
 import quest.gekko.wallet.repository.UserRepository;
 import quest.gekko.wallet.repository.VerificationCodeRepository;
+import quest.gekko.wallet.util.SecurityUtil;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -21,92 +23,169 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthenticationService {
-
     private final UserRepository userRepository;
     private final VerificationCodeRepository verificationCodeRepository;
+
     private final EmailService emailService;
+    private final RateLimitingService rateLimitingService;
+    private final SecurityAuditService securityAuditService;
+    private final ApplicationProperties applicationProperties;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public void sendVerificationCode(String email, String clientIp) {
-        // Generate 6-digit code
-        String code = String.format("%06d", secureRandom.nextInt(1000000));
+    public void sendVerificationCode(final String email, final String clientIp) {
+        validateRateLimit(email, clientIp, RateLimitingService.RateLimitType.EMAIL_SEND);
 
-        // Create verification code
-        VerificationCode verificationCode = VerificationCode.builder()
+        final String verificationCode = generateSecureVerificationCode();
+
+        cleanupExpiredCodes();
+        verificationCodeRepository.deleteByEmail(email);
+
+        final VerificationCode code = createVerificationCode(email, verificationCode, clientIp);
+        verificationCodeRepository.save(code);
+
+        emailService.sendVerificationCode(email, verificationCode);
+        rateLimitingService.recordAttempt(email + ":" + clientIp, RateLimitingService.RateLimitType.EMAIL_SEND);
+
+        securityAuditService.logSecurityEvent(
+                SecurityAuditService.SecurityEventType.SUCCESSFUL_AUTHENTICATION,
+                email,
+                "Verification code sent",
+                clientIp
+        );
+
+        log.info("Verification code sent to: {}", SecurityUtil.maskEmail(email));
+    }
+
+    @Transactional
+    public Optional<User> verifyCodeAndAuthenticate(final String email, final String code, final String clientIp) {
+        validateRateLimit(email, clientIp, RateLimitingService.RateLimitType.CODE_VERIFY);
+
+        final Optional<VerificationCode> verificationCodeOpt = findAndValidateCode(email, code);
+
+        if (verificationCodeOpt.isEmpty()) {
+            handleFailedVerification(email, clientIp, "Invalid verification code");
+            return Optional.empty();
+        }
+
+        final VerificationCode verificationCode = verificationCodeOpt.get();
+
+        if (isCodeExpired(verificationCode)) {
+            verificationCodeRepository.delete(verificationCode);
+            handleFailedVerification(email, clientIp, "Expired verification code");
+            return Optional.empty();
+        }
+
+        if (hasExceededAttempts(verificationCode)) {
+            verificationCodeRepository.delete(verificationCode);
+            handleFailedVerification(email, clientIp, "Too many verification attempts");
+            return Optional.empty();
+        }
+
+        verificationCodeRepository.delete(verificationCode);
+        rateLimitingService.recordAttempt(email + ":" + clientIp, RateLimitingService.RateLimitType.CODE_VERIFY);
+
+        return findOrCreateUser(email, clientIp);
+    }
+
+    @Scheduled(fixedRate = 300000)
+    @Transactional
+    public void cleanupExpiredCodes() {
+        final long deletedCount = verificationCodeRepository.countByExpiresAtBefore(LocalDateTime.now());
+        verificationCodeRepository.deleteByExpiresAtBefore(LocalDateTime.now());
+
+        if (deletedCount > 0) {
+            log.debug("Cleaned up {} expired verification codes", deletedCount);
+        }
+    }
+
+    private void validateRateLimit(final String email, final String clientIp, final RateLimitingService.RateLimitType type) {
+        final String identifier = email + ":" +  clientIp;
+
+        if (!rateLimitingService.isAllowed(identifier, type)) {
+            securityAuditService.logSecurityEvent(
+                    SecurityAuditService.SecurityEventType.RATE_LIMIT_EXCEEDED,
+                    email,
+                    "Rate limit exceeded for " + type,
+                    clientIp
+            );
+
+            throw new RateLimitExceededException("Rate limit exceeded. Please try again later.");
+        }
+    }
+
+    private String generateSecureVerificationCode() {
+        final int codeLength = applicationProperties.getVerification().getCode().getLength();
+        final int maxValue = (int) Math.pow(10, codeLength) - 1;
+        final int code = secureRandom.nextInt(maxValue + 1);
+        return String.format("%0" + codeLength + "d", code);
+    }
+
+    private VerificationCode createVerificationCode(final String email, final String code, final String clientIp) {
+        final int expiryMinutes = applicationProperties.getVerification().getCode().getExpiry().getMinutes();
+
+        return VerificationCode.builder()
                 .email(email)
                 .code(code)
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .expiresAt(LocalDateTime.now().plusMinutes(expiryMinutes))
                 .attemptCount(0)
                 .createdAt(LocalDateTime.now())
                 .clientIp(clientIp)
                 .build();
-
-        // Remove old codes and save new one
-        verificationCodeRepository.deleteByEmail(email);
-        verificationCodeRepository.save(verificationCode);
-
-        // Send email
-        emailService.sendVerificationCode(email, code);
-
-        log.info("Verification code sent to: {}", maskEmail(email));
     }
 
-    public Optional<User> verifyCodeAndAuthenticate(String email, String code, String clientIp) {
-        // Locate verification code
-        Optional<VerificationCode> verificationCodeOpt = verificationCodeRepository.findByEmailAndCode(email, code);
+    private Optional<VerificationCode> findAndValidateCode(final String email, final String code) {
+        return verificationCodeRepository.findByEmailAndCode(email, code);
+    }
 
-        if (verificationCodeOpt.isEmpty()) {
-            log.warn("Invalid verification code for: {}", maskEmail(email));
-            return Optional.empty();
-        }
+    private boolean isCodeExpired(final VerificationCode verificationCode) {
+        return verificationCode.getExpiresAt().isBefore(LocalDateTime.now());
+    }
 
-        VerificationCode verificationCode = verificationCodeOpt.get();
+    private boolean hasExceededAttempts(final VerificationCode verificationCode) {
+        final int maxAttempts = applicationProperties.getVerification().getMaxAttempts();
+        return verificationCode.getAttemptCount() >= maxAttempts;
+    }
 
-        // Check if expired
-        if (verificationCode.getExpiresAt().isBefore(LocalDateTime.now())) {
-            log.warn("Expired verification code for: {}", maskEmail(email));
-            verificationCodeRepository.delete(verificationCode);
-            return Optional.empty();
-        }
+    private void handleFailedVerification(final String email, final String clientIp, final String reason) {
+        securityAuditService.logFailedAuthentication(email, clientIp, reason);
+        log.warn("Authentication failed for {}: {}", SecurityUtil.maskEmail(email), reason);
+    }
 
-        // Code is valid - remove it
-        verificationCodeRepository.delete(verificationCode);
+    private Optional<User> findOrCreateUser(final String email, final String clientIp) {
+        final Optional<User> existingUser = userRepository.findByEmail(email);
 
-        // Find or create user
-        Optional<User> existingUser = userRepository.findByEmail(email);
-
-        User user;
         if (existingUser.isPresent()) {
-            user = existingUser.get();
-            user.setLastLoginAt(LocalDateTime.now());
-            user.setLastLoginIp(clientIp);
+            User user = existingUser.get();
+            updateUserLoginInfo(user, clientIp);
             user = userRepository.save(user);
-            log.info("User logged in: {}", maskEmail(email));
-        } else {
-            user = User.builder()
-                    .email(email)
-                    .createdAt(LocalDateTime.now())
-                    .lastLoginAt(LocalDateTime.now())
-                    .lastLoginIp(clientIp)
-                    .vaultInitialized(false)
-                    .build();
-            user = userRepository.save(user);
-            log.info("New user created: {}", maskEmail(email));
-        }
 
-        return Optional.of(user);
+            securityAuditService.logSuccessfulAuthentication(email, clientIp);
+            log.info("User logged in: {}", SecurityUtil.maskEmail(email));
+            return Optional.of(user);
+        } else {
+            final User user = createNewUser(email, clientIp);
+            final User savedUser = userRepository.save(user);
+
+            securityAuditService.logSuccessfulAuthentication(email, clientIp);
+            log.info("New user created: {}", SecurityUtil.maskEmail(email));
+            return Optional.of(savedUser);
+        }
     }
 
-    private String maskEmail(String email) {
-        if (email == null || email.length() < 3) return "***";
-        int atIndex = email.indexOf('@');
-        if (atIndex <= 0) return "***";
-        String username = email.substring(0, atIndex);
-        String domain = email.substring(atIndex);
-        if (username.length() <= 2) {
-            return "*".repeat(username.length()) + domain;
-        }
-        return username.charAt(0) + "*".repeat(username.length() - 2) + username.charAt(username.length() - 1) + domain;
+    private void updateUserLoginInfo(User user, String clientIp) {
+        user.setLastLoginAt(LocalDateTime.now());
+        user.setLastLoginIp(clientIp);
+        user.resetFailedAttempts();
+    }
+
+    private User createNewUser(String email, String clientIp) {
+        return User.builder()
+                .email(email)
+                .createdAt(LocalDateTime.now())
+                .lastLoginAt(LocalDateTime.now())
+                .lastLoginIp(clientIp)
+                .vaultInitialized(false)
+                .build();
     }
 }

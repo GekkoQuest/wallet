@@ -2,69 +2,54 @@ package quest.gekko.wallet.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import quest.gekko.wallet.entity.PasswordEntry;
-import quest.gekko.wallet.service.PasswordService;
+import quest.gekko.wallet.service.PasswordManagementService;
 import quest.gekko.wallet.service.SecurityAuditService;
+import quest.gekko.wallet.util.SecurityUtil;
 
 import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class VaultController {
-
-    private final PasswordService passwordService;
-    private final SecurityAuditService auditService;
+    private final PasswordManagementService passwordManagementService;
+    private final SecurityAuditService securityAuditService;
 
     @GetMapping("/dashboard")
-    public String showDashboard(HttpSession session, HttpServletRequest request, Model model) {
-        log.info("=== DASHBOARD ACCESS ATTEMPT ===");
-        log.info("Session ID: {}", session.getId());
-        log.info("Session new: {}", session.isNew());
+    public String showDashboard(final HttpSession session, final HttpServletRequest request, final Model model) {
+        log.debug("Dashboard access attempt - Session ID: {}", session.getId());
 
-        String email = (String) session.getAttribute("email");
-        String userId = (String) session.getAttribute("userId");
-        Boolean authenticated = (Boolean) session.getAttribute("authenticated");
-        Long loginTime = (Long) session.getAttribute("loginTime");
+        final String email = validateSessionAndGetEmail(session);
 
-        log.info("Session attributes - email: {}, userId: {}, authenticated: {}, loginTime: {}",
-                email != null ? maskEmail(email) : "NULL",
-                userId != null ? "present" : "NULL",
-                authenticated,
-                loginTime != null ? "present" : "NULL");
-
-        // Just check if email exists
         if (email == null) {
-            log.warn("No email in session - redirecting to login");
+            log.warn("No valid session - redirecting to login");
             return "redirect:/";
         }
 
         try {
-            List<PasswordEntry> passwords = passwordService.getPasswordsByEmail(email);
+            final List<PasswordEntry> passwords = passwordManagementService.getPasswordsByEmail(email);
             model.addAttribute("passwords", passwords);
 
-            String clientIp = getClientIpAddress(request);
-            auditService.logSecurityEvent(
-                    SecurityAuditService.SecurityEventType.PASSWORD_ACCESS,
-                    email,
-                    "Dashboard accessed",
-                    clientIp
-            );
+            final String clientIp = SecurityUtil.getClientIpAddress(request);
+            securityAuditService.logPasswordAccess(email, clientIp, "Dashboard accessed");
 
-            log.info("Dashboard loaded successfully for user: {} with {} passwords",
-                    maskEmail(email), passwords.size());
+            log.info("Dashboard loaded successfully for user: {} with {} passwords", SecurityUtil.maskEmail(email), passwords.size());
             return "dashboard";
 
-        } catch (Exception e) {
-            log.error("Error loading dashboard for user: {}", maskEmail(email), e);
+        } catch (final Exception e) {
+            log.error("Error loading dashboard for user: {}", SecurityUtil.maskEmail(email), e);
             model.addAttribute("error", "Unable to load password vault");
             return "dashboard";
         }
@@ -72,98 +57,65 @@ public class VaultController {
 
     @PostMapping("/generate")
     public String savePassword(
-            @RequestParam String name,
-            @RequestParam String encrypted,
-            @RequestParam String iv,
-            @RequestParam String salt,
-            HttpSession session,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes) {
+            @RequestParam @NotBlank final String name,
+            @RequestParam @NotBlank final String encrypted,
+            @RequestParam @NotBlank final String iv,
+            @RequestParam @NotBlank final String salt,
+            final HttpSession session,
+            final HttpServletRequest request,
+            final RedirectAttributes redirectAttributes) {
+        final String email = validateSessionAndGetEmail(session);
 
-        String email = validateSessionAndGetEmail(session, request);
         if (email == null) {
             return "redirect:/";
         }
 
-        String clientIp = getClientIpAddress(request);
+        final String clientIp = SecurityUtil.getClientIpAddress(request);
 
         try {
-            if (name == null || name.trim().isEmpty()) {
-                redirectAttributes.addFlashAttribute("error", "Password name is required");
-                return "redirect:/dashboard";
-            }
+            passwordManagementService.savePassword(email, name.trim(), encrypted, iv, salt);
 
-            if (encrypted == null || encrypted.trim().isEmpty() ||
-                    iv == null || iv.trim().isEmpty() ||
-                    salt == null || salt.trim().isEmpty()) {
-                redirectAttributes.addFlashAttribute("error", "Invalid password data");
-                return "redirect:/dashboard";
-            }
-
-            passwordService.savePassword(email, name.trim(), encrypted, iv, salt);
-
-            auditService.logSecurityEvent(
-                    SecurityAuditService.SecurityEventType.PASSWORD_ACCESS,
-                    email,
-                    "Password saved: " + name.trim(),
-                    clientIp
-            );
-
+            securityAuditService.logPasswordAccess(email, clientIp, "Password saved: " + name.trim());
             redirectAttributes.addFlashAttribute("success", "Password saved successfully");
-            return "redirect:/dashboard";
 
-        } catch (Exception e) {
-            log.error("Error saving password for user: {} from IP: {}", email, clientIp, e);
-            redirectAttributes.addFlashAttribute("error", "Failed to save password");
+            log.info("Password saved successfully for user: {}", SecurityUtil.maskEmail(email));
+            return "redirect:/dashboard";
+        } catch (final Exception e) {
+            log.error("Error saving password for user: {} from IP: {}", SecurityUtil.maskEmail(email), clientIp, e);
+            redirectAttributes.addFlashAttribute("error", "Failed to save password: " + e.getMessage());
             return "redirect:/dashboard";
         }
     }
 
     @PostMapping("/edit")
     public String editPassword(
-            @RequestParam String id,
-            @RequestParam String encrypted,
-            @RequestParam String iv,
-            @RequestParam String salt,
-            HttpSession session,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes) {
+            @RequestParam @NotBlank final String id,
+            @RequestParam @NotBlank final String encrypted,
+            @RequestParam @NotBlank final String iv,
+            @RequestParam @NotBlank final String salt,
+            final HttpSession session,
+            final HttpServletRequest request,
+            final RedirectAttributes redirectAttributes) {
+        final String email = validateSessionAndGetEmail(session);
 
-        String email = validateSessionAndGetEmail(session, request);
         if (email == null) {
             return "redirect:/";
         }
 
-        String clientIp = getClientIpAddress(request);
+        final String clientIp = SecurityUtil.getClientIpAddress(request);
 
         try {
-            if (id == null || id.trim().isEmpty()) {
-                redirectAttributes.addFlashAttribute("error", "Password ID is required");
-                return "redirect:/dashboard";
-            }
+            passwordManagementService.editPassword(id, encrypted, iv, salt, email);
 
-            if (encrypted == null || encrypted.trim().isEmpty() ||
-                    iv == null || iv.trim().isEmpty() ||
-                    salt == null || salt.trim().isEmpty()) {
-                redirectAttributes.addFlashAttribute("error", "Invalid password data");
-                return "redirect:/dashboard";
-            }
-
-            passwordService.editPassword(id, encrypted, iv, salt, email);
-
-            auditService.logSecurityEvent(
-                    SecurityAuditService.SecurityEventType.PASSWORD_ACCESS,
-                    email,
-                    "Password edited: " + id,
-                    clientIp
-            );
-
+            securityAuditService.logPasswordAccess(email, clientIp, "Password edited: " + id);
             redirectAttributes.addFlashAttribute("success", "Password updated successfully");
-            return "redirect:/dashboard";
 
-        } catch (SecurityException e) {
-            log.warn("Unauthorized password edit attempt by user: {} for ID: {} from IP: {}", email, id, clientIp);
-            auditService.logSecurityEvent(
+            log.info("Password edited successfully for user: {}", SecurityUtil.maskEmail(email));
+            return "redirect:/dashboard";
+        } catch (final SecurityException e) {
+            log.warn("Unauthorized password edit attempt by user: {} for ID: {} from IP: {}",
+                    SecurityUtil.maskEmail(email), id, clientIp);
+            securityAuditService.logSecurityEvent(
                     SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
                     email,
                     "Unauthorized password edit attempt: " + id,
@@ -171,109 +123,79 @@ public class VaultController {
             );
             redirectAttributes.addFlashAttribute("error", "Unauthorized access");
             return "redirect:/dashboard";
-
-        } catch (Exception e) {
-            log.error("Error editing password for user: {} from IP: {}", email, clientIp, e);
-            redirectAttributes.addFlashAttribute("error", "Failed to update password");
+        } catch (final Exception e) {
+            log.error("Error editing password for user: {} from IP: {}", SecurityUtil.maskEmail(email), clientIp, e);
+            redirectAttributes.addFlashAttribute("error", "Failed to update password: " + e.getMessage());
             return "redirect:/dashboard";
         }
     }
 
     @PostMapping("/delete")
     public String deletePassword(
-            @RequestParam String id,
-            HttpSession session,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes) {
+            @RequestParam @NotBlank final String id,
+            final HttpSession session,
+            final HttpServletRequest request,
+            final RedirectAttributes redirectAttributes) {
+        final String email = validateSessionAndGetEmail(session);
 
-        String email = validateSessionAndGetEmail(session, request);
         if (email == null) {
             return "redirect:/";
         }
 
-        String clientIp = getClientIpAddress(request);
+        final String clientIp = SecurityUtil.getClientIpAddress(request);
 
         try {
-            if (id == null || id.trim().isEmpty()) {
-                redirectAttributes.addFlashAttribute("error", "Password ID is required");
-                return "redirect:/dashboard";
-            }
+            passwordManagementService.deletePassword(id, email);
 
-            passwordService.deletePassword(id, email);
-
-            auditService.logSecurityEvent(
-                    SecurityAuditService.SecurityEventType.PASSWORD_ACCESS,
-                    email,
-                    "Password deleted: " + id,
-                    clientIp
-            );
-
+            securityAuditService.logPasswordAccess(email, clientIp, "Password deleted: " + id);
             redirectAttributes.addFlashAttribute("success", "Password deleted successfully");
-            return "redirect:/dashboard";
 
-        } catch (SecurityException e) {
-            log.warn("Unauthorized password deletion attempt by user: {} for ID: {} from IP: {}", email, id, clientIp);
-            auditService.logSecurityEvent(
+            log.info("Password deleted successfully for user: {}", SecurityUtil.maskEmail(email));
+            return "redirect:/dashboard";
+        } catch (final SecurityException e) {
+            log.warn("Unauthorized password deletion attempt by user: {} for ID: {} from IP: {}",
+                    SecurityUtil.maskEmail(email), id, clientIp);
+
+            securityAuditService.logSecurityEvent(
                     SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
                     email,
                     "Unauthorized password deletion attempt: " + id,
                     clientIp
             );
+
             redirectAttributes.addFlashAttribute("error", "Unauthorized access");
             return "redirect:/dashboard";
-
-        } catch (Exception e) {
-            log.error("Error deleting password for user: {} from IP: {}", email, clientIp, e);
-            redirectAttributes.addFlashAttribute("error", "Failed to delete password");
+        } catch (final Exception e) {
+            log.error("Error deleting password for user: {} from IP: {}", SecurityUtil.maskEmail(email), clientIp, e);
+            redirectAttributes.addFlashAttribute("error", "Failed to delete password: " + e.getMessage());
             return "redirect:/dashboard";
         }
     }
 
-    private String validateSessionAndGetEmail(HttpSession session, HttpServletRequest request) {
-        String email = (String) session.getAttribute("email");
+    private String validateSessionAndGetEmail(final HttpSession session) {
+        final String email = (String) session.getAttribute("email");
+        final Long loginTime = (Long) session.getAttribute("loginTime");
 
-        log.debug("Session validation - email: {}",
-                email != null ? maskEmail(email) : "null");
+        log.debug("Session validation - email: {}, loginTime: {}",
+                email != null ? SecurityUtil.maskEmail(email) : "null",
+                loginTime != null ? "present" : "null");
 
-        // Just check if email exists
         if (email == null) {
             log.warn("Session validation failed - no email in session");
             return null;
         }
 
+        // Maybe add session timeout validation?
+        if (loginTime != null) {
+            final long sessionAge = System.currentTimeMillis() - loginTime;
+            final long maxSessionAge = 24 * 60 * 60 * 1000L; // 24 hours
+
+            if (sessionAge > maxSessionAge) {
+                log.warn("Session expired for user: {}", SecurityUtil.maskEmail(email));
+                return null;
+            }
+        }
+
         return email;
-    }
-
-    /**
-     * Extract client IP address from request, considering proxy headers
-     */
-    private String getClientIpAddress(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty() && !"unknown".equalsIgnoreCase(xRealIp)) {
-            return xRealIp;
-        }
-
-        return request.getRemoteAddr();
-    }
-
-    private String maskEmail(String email) {
-        if (email == null || email.length() < 3) {
-            return "***";
-        }
-        int atIndex = email.indexOf('@');
-        if (atIndex <= 0) {
-            return "***";
-        }
-        String username = email.substring(0, atIndex);
-        String domain = email.substring(atIndex);
-        if (username.length() <= 2) {
-            return "*".repeat(username.length()) + domain;
-        }
-        return username.charAt(0) + "*".repeat(username.length() - 2) + username.charAt(username.length() - 1) + domain;
     }
 }
