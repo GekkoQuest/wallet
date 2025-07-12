@@ -3,9 +3,12 @@ package quest.gekko.wallet.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,24 +32,28 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none)
                         .maximumSessions(applicationProperties.getSecurity().getSession().getMaxConcurrent())
-                        .and()
-                        .sessionFixation().none()
-                ).headers(headers -> headers
-                        .frameOptions().deny()
-                        .contentTypeOptions().and()
+                )
+                .headers(headers -> headers
+                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
+                        .contentTypeOptions(Customizer.withDefaults())
                         .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                                 .maxAgeInSeconds(31536000)
                                 .includeSubDomains(true)
                                 .preload(true)
-                        ).referrerPolicy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
-                        .and()
-                        .cacheControl().and() // Add cache control headers
-                ).csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(authz -> authz
+                        )
+                        .referrerPolicy(referrerPolicy ->
+                                referrerPolicy.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
+                        )
+                        .cacheControl(Customizer.withDefaults())
+                )
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/css/**", "/js/**", "/images/**", "/terms", "/privacy").permitAll()
-                        .anyRequest().permitAll() // For demo purposes - consider restricting in production
-                ).cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                        .anyRequest().permitAll()
+                )
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .logout(AbstractHttpConfigurer::disable);
 
         return http.build();
