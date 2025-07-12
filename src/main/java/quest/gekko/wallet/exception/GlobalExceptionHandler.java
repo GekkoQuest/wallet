@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.ui.Model;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,6 +19,18 @@ import quest.gekko.wallet.util.SecurityUtil;
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public String handleMethodNotSupported(
+            final HttpRequestMethodNotSupportedException e,
+            final Model model,
+            final HttpServletRequest request) {
+        log.debug("Method not supported from IP {}: {} {}", getClientIp(request), e.getMethod(), request.getRequestURI());
+        model.addAttribute("error", "Method not allowed. Please use the correct request method.");
+        return "error";
+    }
+
 
     @ExceptionHandler(AuthenticationException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
