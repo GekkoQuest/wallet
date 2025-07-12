@@ -17,6 +17,6 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/dashboard", "/generate", "/edit", "/delete", "/vault/**")
                 .excludePathPatterns("/", "/send-code", "/verify", "/logout",
                         "/css/**", "/js/**", "/images/**",
-                        "/terms", "/privacy", "/debug/**");
+                        "/terms", "/privacy", "/error", "/debug/**");
     }
 }
