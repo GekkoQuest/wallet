@@ -1,0 +1,18 @@
+User-agent: *
+
+Allow: /
+Allow: /terms
+Allow: /privacy
+
+Disallow: /dashboard
+Disallow: /vault/
+Disallow: /generate
+Disallow: /edit
+Disallow: /delete
+Disallow: /send-code
+Disallow: /verify
+Disallow: /logout
+Disallow: /debug/
+Disallow: /error/
+
+Crawl-delay: 5

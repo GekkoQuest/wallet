@@ -64,13 +64,7 @@ public class SecurityConfig {
                     }
                 })
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/css/**", "/js/**", "/images/**", "/favicon.ico",
-                                "/terms", "/privacy", "/error", "/debug/**"
-                        ).permitAll()
-                        .anyRequest().permitAll()
-                )
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .logout(AbstractHttpConfigurer::disable)
                 .build();
