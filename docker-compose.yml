@@ -7,3 +7,5 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      - PORT=8080

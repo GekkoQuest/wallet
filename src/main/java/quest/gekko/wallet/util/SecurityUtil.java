@@ -36,6 +36,7 @@ public class SecurityUtil {
         // 2. X-Forwarded-For (standard proxy header)
         // 3. X-Real-IP (alternative proxy header)
         // 4. Remote address (fallback)
+        // https://developers.cloudflare.com/fundamentals/reference/http-headers/
 
         final String cfConnectingIp = request.getHeader("CF-Connecting-IP");
         if (isValidIpHeader(cfConnectingIp)) {
