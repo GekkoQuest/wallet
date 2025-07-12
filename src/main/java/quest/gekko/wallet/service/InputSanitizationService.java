@@ -2,6 +2,7 @@ package quest.gekko.wallet.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import quest.gekko.wallet.util.ValidationUtil;
 
 import java.util.regex.Pattern;
 
@@ -154,12 +155,7 @@ public class InputSanitizationService {
     }
 
     public boolean isWithinLengthLimits(final String input, final int minLength, final int maxLength) {
-        if (input == null) {
-            return minLength == 0;
-        }
-
-        final int length = input.trim().length();
-        return length >= minLength && length <= maxLength;
+        return ValidationUtil.isWithinLengthLimits(input, minLength, maxLength);
     }
 
     public boolean isPasswordNameValid(final String name) {

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - Wallet</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+    <div class="text-center mb-20">
+        <div style="font-size: 4rem; margin-bottom: 20px;">🔍</div>
+        <h2>Page Not Found</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">
+            The page you're looking for doesn't exist or has been moved.
+        </p>
+    </div>
+
+    <div style="background: rgba(255, 255, 255, 0.8); padding: 25px; border-radius: var(--border-radius-lg); margin-bottom: 30px; border: 1px solid rgba(255, 255, 255, 0.3);">
+        <h3 style="color: var(--warning-color); margin-bottom: 15px;">🤔 What happened?</h3>
+        <p style="color: var(--text-primary); line-height: 1.8;">
+            The URL you entered might be incorrect, or the page might have been removed.
+            This could happen if you bookmarked an old link or if there was a typo in the address.
+        </p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+        <a href="/" class="btn btn-primary">
+            🏠 Go to Login
+        </a>
+        <a href="/dashboard" class="btn btn-secondary">
+            📊 Go to Dashboard
+        </a>
+        <button onclick="window.history.back()" class="btn btn-outline">
+            🔙 Go Back
+        </button>
+    </div>
+
+    <div th:replace="~{fragments/footer :: footer}"></div>
+</div>
+</body>
+</html>

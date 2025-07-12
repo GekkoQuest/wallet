@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Something Went Wrong - Wallet</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+    <div class="text-center mb-20">
+        <div style="font-size: 4rem; margin-bottom: 20px;">😵</div>
+        <h2>Oops! Something Went Wrong</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">
+            We encountered an unexpected error. Don't worry, your data is safe!
+        </p>
+    </div>
+
+    <!-- Error Message Display -->
+    <div th:if="${error}" class="error-message" th:text="${error}">
+        An unexpected error occurred. Please try again.
+    </div>
+
+    <!-- Default Error Message if none provided -->
+    <div th:unless="${error}" class="error-message">
+        An unexpected error occurred while processing your request. Please try again.
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 30px;">
+        <button onclick="goBack()" class="btn btn-primary">
+            🔙 Go Back
+        </button>
+
+        <a href="/" class="btn btn-secondary">
+            🏠 Return to Login
+        </a>
+
+        <a href="/dashboard" class="btn btn-outline">
+            📊 Go to Dashboard
+        </a>
+    </div>
+
+    <!-- Helpful Information -->
+    <div style="background: rgba(255, 255, 255, 0.5); padding: 25px; border-radius: var(--border-radius-lg); margin-top: 30px; border: 1px solid rgba(255, 255, 255, 0.3);">
+        <h3 style="color: var(--info-color); margin-bottom: 15px;">💡 What you can try:</h3>
+        <ul style="color: var(--text-primary); line-height: 1.8; margin: 0; padding-left: 20px;">
+            <li><strong>Refresh the page</strong> - Sometimes a simple refresh fixes temporary issues</li>
+            <li><strong>Check your internet connection</strong> - Make sure you're still connected</li>
+            <li><strong>Try logging in again</strong> - Your session might have expired</li>
+            <li><strong>Wait a few minutes</strong> - Our servers might be experiencing high traffic</li>
+        </ul>
+    </div>
+
+    <!-- Support Information -->
+    <div style="background: rgba(255, 255, 255, 0.5); padding: 25px; border-radius: var(--border-radius-lg); margin-top: 20px; border: 1px solid rgba(255, 255, 255, 0.3);">
+        <h3 style="color: var(--primary-color); margin-bottom: 15px;">🆘 Still having trouble?</h3>
+        <p style="color: var(--text-primary); line-height: 1.8; margin: 0;">
+            If the problem persists, this is likely a temporary issue on our end.
+            Your passwords and data are safe and secure. Please try again in a few minutes.
+        </p>
+        <div style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: var(--border-radius); border: 1px solid rgba(102, 126, 234, 0.2);">
+            <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
+                <strong>Demo Project Notice:</strong> This is a demonstration password manager.
+                For production use, please consider established solutions like Bitwarden or 1Password.
+            </p>
+        </div>
+    </div>
+
+    <div th:replace="~{fragments/footer :: footer}"></div>
+</div>
+
+<script>
+    function goBack() {
+        // Check if there's history to go back to
+        if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            // If no history, go to home page
+            window.location.href = '/';
+        }
+    }
+
+    // Optional: Add some interactivity
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add a subtle animation to the error emoji
+        const errorEmoji = document.querySelector('div[style*="font-size: 4rem"]');
+        if (errorEmoji) {
+            errorEmoji.style.animation = 'wobble 2s ease-in-out infinite';
+        }
+
+        // Log error for debugging (only in development)
+        console.log('Error page loaded. If you see this repeatedly, please refresh or try again later.');
+    });
+
+    // Add CSS animation for the emoji
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes wobble {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+</body>
+</html>

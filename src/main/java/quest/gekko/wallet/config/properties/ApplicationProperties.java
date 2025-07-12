@@ -13,6 +13,7 @@ public class ApplicationProperties {
     private Security security = new Security();
     private Vault vault = new Vault();
     private Email email = new Email();
+    private Cloudflare cloudflare = new Cloudflare(); // NEW: Added Cloudflare config
 
     @Data
     public static class Support {
@@ -114,5 +115,11 @@ public class ApplicationProperties {
                 private boolean enabled = true;
             }
         }
+    }
+
+    // NEW: Cloudflare configuration section
+    @Data
+    public static class Cloudflare {
+        private boolean enabled = true;
     }
 }

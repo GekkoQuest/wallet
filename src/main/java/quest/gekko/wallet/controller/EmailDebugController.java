@@ -26,18 +26,16 @@ public class EmailDebugController {
 
     @GetMapping("/email-config")
     public Map<String, Object> getEmailConfig() {
-        Map<String, Object> config = new HashMap<>();
+        final Map<String, Object> config = new HashMap<>();
 
-        // Environment variables
         config.put("spring.mail.host", environment.getProperty("spring.mail.host"));
         config.put("spring.mail.port", environment.getProperty("spring.mail.port"));
         config.put("spring.mail.username", environment.getProperty("spring.mail.username"));
         config.put("spring.mail.password", environment.getProperty("spring.mail.password") != null ? "SET" : "NOT_SET");
         config.put("fromEmail", fromEmail);
 
-        // Mail sender properties
         if (mailSender instanceof JavaMailSenderImpl javaMailSender) {
-            Map<String, Object> senderConfig = new HashMap<>();
+            final Map<String, Object> senderConfig = new HashMap<>();
             senderConfig.put("host", javaMailSender.getHost());
             senderConfig.put("port", javaMailSender.getPort());
             senderConfig.put("username", javaMailSender.getUsername());
@@ -45,8 +43,8 @@ public class EmailDebugController {
             senderConfig.put("protocol", javaMailSender.getProtocol());
             senderConfig.put("defaultEncoding", javaMailSender.getDefaultEncoding());
 
-            Properties props = javaMailSender.getJavaMailProperties();
-            Map<String, Object> propsMap = new HashMap<>();
+            final Properties props = javaMailSender.getJavaMailProperties();
+            final Map<String, Object> propsMap = new HashMap<>();
             props.forEach((key, value) -> propsMap.put(key.toString(), value));
             senderConfig.put("javaMailProperties", propsMap);
 
@@ -57,8 +55,8 @@ public class EmailDebugController {
     }
 
     @PostMapping("/test-email")
-    public Map<String, String> testEmail(@RequestParam String to) {
-        Map<String, String> result = new HashMap<>();
+    public Map<String, String> testEmail(@RequestParam final String to) {
+        final Map<String, String> result = new HashMap<>();
 
         try {
             emailService.sendTestEmail(to);
@@ -75,7 +73,7 @@ public class EmailDebugController {
 
     @PostMapping("/test-connection")
     public Map<String, String> testConnection() {
-        Map<String, String> result = new HashMap<>();
+        final Map<String, String> result = new HashMap<>();
 
         try {
             if (mailSender instanceof JavaMailSenderImpl javaMailSender) {
