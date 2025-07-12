@@ -8,151 +8,222 @@ A personal password manager project built with Spring Boot as a learning exercis
 
 This project implements a **zero-knowledge password manager** where I experimented with keeping encrypted data on the server while ensuring the server never has access to unencrypted passwords. All sensitive operations happen client-side using the Web Crypto API.
 
-### Client-Side Encryption
-- **AES-GCM encryption** with 256-bit keys for password data
+### Core Architecture
+- **Zero-knowledge design** - Server cannot decrypt your passwords
+- **Client-side encryption** using Web Crypto API with AES-GCM 256-bit encryption
+- **Email-based authentication** - No traditional passwords, uses secure verification codes
+- **Session-based security** with automatic timeouts and activity tracking
+- **Rate limiting** and security audit logging throughout
+
+## Security Features
+
+### Encryption & Key Management
+- **AES-GCM encryption** with 256-bit keys for maximum security
 - **PBKDF2 key derivation** with 100,000 iterations and random salts
-- **Unique IV per entry** so each encryption is different
-- **Master password stays in browser** - never sent to the server
+- **Unique IV per entry** ensuring each encryption is cryptographically unique
+- **Master password isolation** - Never transmitted or stored on server
+- **Secure key timeout** - Automatic session expiration for security
 
-### Authentication Approach
-- **Email-based login** using verification codes instead of passwords
-- **Rate limiting** to prevent spam and brute force attempts
-- **Session management** with timeouts and proper cleanup
-- **Failed attempt tracking** with temporary lockouts
+### Authentication System
+- **Passwordless login** using time-limited verification codes
+- **Email-based verification** with HTML templates and security alerts
+- **Rate limiting** on both email sending and code verification attempts
+- **Account lockout protection** with configurable failed attempt thresholds
+- **Session security** with anti-fixation and secure cookie handling
+- **Activity tracking** with automatic session extension and timeout warnings
 
-### Security Features
-- **Input validation** to prevent XSS and injection attacks
-- **Input sanitization** for all user data
-- **Security audit logging** for tracking authentication events
-- **Thread-safe rate limiting** with automatic cleanup
-- **CORS configuration** for cross-origin protection
+### Input Validation & Protection
+- **Input sanitization** preventing XSS and injection attacks
+- **Server-side validation** with detailed error handling and logging
+- **CORS protection** with configurable origin policies
+- **Security headers** including HSTS, frame options, and content type protection
+- **Cloudflare integration** for proxy header handling and DDoS protection
+
+### Audit & Monitoring
+- **Security event logging** for all authentication and vault access
+- **Failed attempt tracking** with IP-based monitoring
+- **Suspicious activity detection** and automatic alerts
+- **Rate limit monitoring** with detailed violation logging
+
+## Vault Management Features
+
+### Password Operations
+- **Secure password generation** with customizable character sets and length
+- **Real-time password strength analysis** with detailed requirement checking
+- **CRUD operations** - Create, edit, delete, and search password entries
+- **Bulk operations** with transaction safety and rollback protection (Soon)
+- **Usage analytics** - Track access patterns and vault statistics (Soon)
+
+### User Experience
+- **Responsive design** with mobile-first approach and modern UI
+- **Copy-to-clipboard** functionality with automatic clearing
+- **Show/hide passwords** with secure visibility toggling
+- **Search functionality** with sanitized input and performance optimization (Soon)
+- **Real-time statistics** showing vault usage and limits (Soon)
+
+### Data Management
+- **MongoDB integration** with indexed collections for performance
+- **Automatic cleanup** of expired verification codes and sessions
+- **Vault limits** with configurable password storage quotas (1000 per user)
+
+## Technical Implementation
+
+### Backend (Spring Boot 3.5)
+- **Spring Security** with custom authentication and session management
+- **MongoDB** with optimized queries and proper indexing
+- **Email service** with SMTP configuration and template rendering
+- **Rate limiting service** with thread-safe implementation and cleanup
+- **Input sanitization service** with validation rules
+- **Async processing** for email sending and background tasks
+
+### Frontend (Vanilla JavaScript)
+- **Web Crypto API** integration for client-side encryption/decryption
+- **Secure key management** with in-memory storage and timeout handling
+- **Progressive enhancement** with fallbacks for older browsers
+- **Real-time validation** and user feedback systems
+- **Modern CSS** with CSS Grid, Flexbox, and custom properties
+
+## Configuration & Deployment
+
+### Environment Support
+```properties
+# Production-ready configuration
+SPRING_DATA_MONGODB_URI=mongodb://localhost:27017/wallet
+SPRING_MAIL_HOST=smtp.example.com
+SPRING_MAIL_USERNAME=notifications@example.com
+CORS_ALLOWED_ORIGINS=https://yourdomain.com
+CLOUDFLARE_ENABLED=true
+```
+
+### Security Configuration
+```properties
+# Rate limiting (per hour/minute)
+app.security.rate-limit.email-send.per-hour=10
+app.security.rate-limit.code-verify.per-hour=20
+
+# Account protection
+app.security.failed-attempts.max=5
+app.security.account-lock.duration-minutes=30
+
+# Session security
+server.servlet.session.timeout=30m
+server.servlet.session.cookie.secure=true
+server.servlet.session.cookie.same-site=lax
+```
+
+### Docker Deployment
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Or build manually
+docker build -t wallet .
+docker run -p 8080:8080 --env-file .env wallet
+```
 
 ## Getting Started
 
-### What You Need
-
+### Prerequisites
 - Java 21+
-- MongoDB
-- SMTP email server
+- MongoDB 4.4+
+- SMTP email server (Gmail, SendGrid, etc.)
 
-### Running Locally
+### Quick Setup
 
-1. **Clone the project**
+1. **Clone and configure**
    ```bash
-   git clone https://github.com/yourusername/password-manager.git
-   cd password-manager
+   git clone https://github.com/yourusername/wallet.git
+   cd wallet
+   cp .env.example .env
+   # Edit .env with your configuration
    ```
 
-2. **Set up environment**
-   ```bash
-   export SPRING_DATA_MONGODB_URI=URI_HERE
-   export SPRING_MAIL_HOST=HOST_HERE
-   export SPRING_MAIL_PORT=PORT_HERE
-   export SPRING_MAIL_USERNAME=USERNAME_HERE
-   export SPRING_MAIL_PASSWORD=PASSWORD_HERE
-   ```
-
-3. **Start the application**
+2. **Run locally**
    ```bash
    ./mvnw spring-boot:run
    ```
 
-4. **Try it out** at `http://localhost:8080`
+3. **Access the application**
+   - Open `http://localhost:8080`
+   - Enter your email to receive a verification code
+   - Create your master password (client-side only)
+   - Start managing passwords securely
 
-## Configuration
-
-```properties
-# Rate Limiting
-app.security.rate-limit.email-send.per-hour=10
-app.security.rate-limit.code-verify.per-hour=20
-
-# Account Security
-app.security.failed-attempts.max=5
-app.security.account-lock.duration-minutes=30
-
-# Session Security
-server.servlet.session.timeout=30m
-server.servlet.session.cookie.http-only=true
-server.servlet.session.cookie.secure=true
-server.servlet.session.cookie.same-site=strict
-```
-
-## How It Works
-
-### Backend
-- **Spring Boot 3.5** with Spring Security for the foundation
-- **MongoDB** for storing encrypted password data
-- **Input validation** using annotations and custom validators
-- **Transaction management** to keep data consistent
-
-### Frontend
-- **Vanilla JavaScript** with Web Crypto API for encryption
-- **No external dependencies** to keep it simple
-- **Session handling** with proper timeouts
-
-### Encryption Process
-1. User creates a master password (never leaves their browser)
-2. PBKDF2 creates an encryption key with a random salt
-3. Password data gets encrypted with AES-GCM and a unique IV
-4. Only the encrypted data, IV, and salt go to the server
-5. Server stores the encrypted blob without being able to decrypt it
-
-### Security Measures
-- **Session protection** against fixation attacks
-- **Rate limiting** to prevent brute force attempts
-- **Audit logging** for security events
-- **Input cleaning** to prevent XSS attacks
-- **Safe error handling** without leaking information
-
-## Development
-
-### Running in Dev Mode
+### Development Mode
 ```bash
 export SPRING_PROFILES_ACTIVE=dev
-./mvnw spring-boot:run
+export CLOUDFLARE_ENABLED=false
+./mvnw spring-boot:run -Dspring-boot.run.arguments="--debug"
 ```
 
-### Building
-```bash
-./mvnw clean package
-java -jar target/wallet-0.0.1-SNAPSHOT.jar
-```
+## API Endpoints
+
+### Authentication
+- `POST /send-code` - Request verification code
+- `POST /verify` - Verify code and authenticate
+- `GET /logout` - Terminate session
+
+### Vault Management
+- `GET /dashboard` - Main vault interface
+- `POST /generate` - Save new password
+- `POST /edit` - Update existing password
+- `POST /delete` - Remove password entry
+- `GET /vault/search` - Search vault entries
+- `GET /vault/statistics` - Get usage statistics
+
+### Utilities
+- `GET /debug/email-config` - Email configuration check
+- `POST /debug/test-email` - Send test email
 
 ## Project Structure
 
 ```
 src/main/java/quest/gekko/wallet/
-├── config/          # Security and app configuration
-├── controller/      # Web controllers with security validation
-├── entity/          # MongoDB entities
-├── exception/       # Custom exception handling
-├── repository/      # Data access layer
-├── service/         # Business logic with security controls
-└── util/           # Security utility functions
+├── config/              # Security, CORS, and application configuration
+│   ├── SecurityConfig.java
+│   ├── CloudflareConfig.java
+│   └── properties/
+├── controller/          # Web controllers with comprehensive validation
+│   ├── AuthenticationController.java
+│   ├── VaultController.java
+│   └── EmailDebugController.java
+├── service/             # Business logic with security controls
+│   ├── AuthenticationService.java
+│   ├── PasswordManagementService.java
+│   ├── RateLimitingService.java
+│   ├── SecurityAuditService.java
+│   └── SessionManagementService.java
+├── repository/          # MongoDB data access layer
+├── entity/              # JPA entities with security constraints
+├── exception/           # Custom exception handling
+└── util/               # Security utilities and validation
 
 src/main/resources/
-├── static/css/     # Frontend styles
-├── templates/      # Thymeleaf templates
+├── static/css/         # Modern responsive design
+├── templates/          # Thymeleaf templates with security headers
 └── application.properties
 ```
 
 ## Important Notes
 
-**This is a learning project** - I built it to better understand security concepts and improve my development skills.
+This is a **student project** I built to learn about web security and encryption. While I tried to implement security features properly, I'm still learning and this shouldn't be considered a reference implementation.
 
-### What it MAY be good for
-- Learning about client-side encryption
-- Understanding Spring Security
-- Exploring secure coding practices
-- Testing security features
+### ⚠️ Not intended for:
+- Storing real passwords or sensitive data
+- Production use or commercial deployment
+- Use by others as a secure password manager
+- Reference as a "best practices" implementation
 
-### Not meant for
-- Storing real sensitive passwords
-- Production use without additional security measures
-- Commercial or enterprise use
+### 🔒 For actual password management:
+Use established solutions like **Bitwarden**, **1Password**, or **Dashlane** that have:
+- Professional security audits and certifications
+- Proper enterprise support and guarantees
+- Teams of security experts maintaining them
 
-For real password storage, use established tools like Bitwarden, 1Password, or similar professionally audited solutions.
+## Contributing
+
+This is a personal learning project, but if you spot any issues or have suggestions for improvement, feel free to open an issue or reach out.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
