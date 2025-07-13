@@ -34,7 +34,7 @@ public class VaultController {
     private final SecurityAuditService securityAuditService;
     private final SessionManagementService sessionManagementService;
 
-    @GetMapping("/dashboard")
+    @GetMapping("/vault/dashboard")
     public String showDashboard(final HttpSession session, final HttpServletRequest request, final Model model) {
         log.debug("Dashboard access attempt - Session ID: {}", session.getId());
 
@@ -69,7 +69,7 @@ public class VaultController {
         }
     }
 
-    @PostMapping("/generate")
+    @PostMapping("/vault/generate")
     public String savePassword(
             @Valid @ModelAttribute final SavePasswordRequest request,
             final BindingResult bindingResult,
@@ -114,7 +114,7 @@ public class VaultController {
         }
     }
 
-    @PostMapping("/edit")
+    @PostMapping("/vault/edit")
     public String editPassword(
             @Valid @ModelAttribute final EditPasswordRequest request,
             final BindingResult bindingResult,
@@ -171,7 +171,7 @@ public class VaultController {
         }
     }
 
-    @PostMapping("/delete")
+    @PostMapping("/vault/delete")
     public String deletePassword(
             @RequestParam("id") final String passwordId,
             final HttpSession session,

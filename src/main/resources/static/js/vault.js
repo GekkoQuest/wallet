@@ -260,7 +260,7 @@ WalletApp.Vault.handleEditSubmit = async () => {
         payload.append("iv", WalletApp.Crypto.arrayBufferToBase64(iv));
         payload.append("salt", WalletApp.Crypto.arrayBufferToBase64(salt));
 
-        const response = await fetch("/edit", {
+        const response = await fetch("/vault/edit", {
             method: "POST",
             body: payload
         });
@@ -314,7 +314,7 @@ WalletApp.Vault.handleGenerateSubmit = async (e) => {
         payload.append("iv", WalletApp.Crypto.arrayBufferToBase64(iv));
         payload.append("salt", WalletApp.Crypto.arrayBufferToBase64(salt));
 
-        const response = await fetch("/generate", {
+        const response = await fetch("/vault/generate", {
             method: "POST",
             body: payload
         });

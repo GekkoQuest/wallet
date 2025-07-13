@@ -14,7 +14,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
         registry.addInterceptor(securityInterceptor)
-                .addPathPatterns("/dashboard", "/generate", "/edit", "/delete", "/vault/**")
+                .addPathPatterns("/vault/**")
                 .excludePathPatterns("/", "/send-code", "/verify", "/logout",
                         "/css/**", "/static/js/**", "/images/**",
                         "/terms", "/privacy", "/error/**", "/debug/**");
