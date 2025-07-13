@@ -11,7 +11,6 @@ WalletApp.Vault.init = () => {
 
     WalletApp.Vault.checkVaultStatus();
     WalletApp.Vault.initEventListeners();
-    WalletApp.Vault.generatePassword();
 
     WalletApp.Vault.setupActivityTracking();
 };

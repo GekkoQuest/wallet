@@ -9,12 +9,74 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .password-age-warning {
+            font-size: 1.1rem;
+            cursor: help;
+            opacity: 0.8;
+            transition: opacity 0.2s ease;
+            position: relative;
+        }
+
+        .password-age-warning:hover {
+            opacity: 1;
+        }
+
+        .password-age-warning:hover::after {
+            content: attr(data-tooltip);
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            max-width: 300px;
+            white-space: normal;
+            line-height: 1.4;
+            z-index: 10000;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            animation: tooltipFadeIn 0.2s ease-out;
+            text-align: center;
+        }
+
+        @keyframes tooltipFadeIn {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .table-container table {
+            position: relative;
+            overflow: visible;
+        }
+
+        .table-container tbody td {
+            position: relative;
+            overflow: visible;
+        }
+    </style>
 </head>
 <body>
 <div class="container dashboard-container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
         <h2 style="margin: 0;">🔐 Password Vault</h2>
-        <a href="/vault/analytics" class="btn btn-outline">📊 Vault Analytics</a>
+        <a href="/vault/analytics" class="btn btn-outline">📊 Analytics</a>
+    </div>
+
+    <div th:if="${agedPasswordCount != null and agedPasswordCount > 0}"
+         style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: var(--border-radius); padding: 15px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.2rem;">⏰</span>
+            <span style="color: #d97706; font-weight: 500;">
+            <span th:text="${agedPasswordCount}">3</span>
+            <span th:if="${agedPasswordCount == 1}">password hasn't</span>
+            <span th:unless="${agedPasswordCount == 1}">passwords haven't</span>
+            been updated in 6+ months. Consider refreshing them for better security.
+        </span>
+        </div>
     </div>
 
     <div id="masterPasswordModal" class="modal-overlay hidden">
@@ -122,7 +184,14 @@
             <tbody>
             <tr th:each="entry, iterStat : ${passwords}">
                 <td>
-                    <strong th:text="${entry.name}">Service Name</strong>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong th:text="${entry.name}">Service Name</strong>
+                        <span th:if="${#temporals.format(entry.createdAt, 'yyyy-MM-dd') < #temporals.format(#temporals.createNow().minusMonths(6), 'yyyy-MM-dd') and (entry.lastModifiedAt == null or #temporals.format(entry.lastModifiedAt, 'yyyy-MM-dd') < #temporals.format(#temporals.createNow().minusMonths(3), 'yyyy-MM-dd'))}"
+                              class="password-age-warning"
+                              data-tooltip="This password is outdated. Created over 6 months ago and hasn't been updated in 3+ months. Consider refreshing for better security.">
+                            ⚠️
+                        </span>
+                    </div>
                 </td>
                 <td th:attr="data-encrypted=${entry.encrypted},data-iv=${entry.iv},data-salt=${entry.salt}">
                     <input type="password"

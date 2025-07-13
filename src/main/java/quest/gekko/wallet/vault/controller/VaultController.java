@@ -14,6 +14,7 @@ import quest.gekko.wallet.vault.dto.request.EditPasswordRequest;
 import quest.gekko.wallet.vault.dto.request.SavePasswordRequest;
 import quest.gekko.wallet.vault.dto.response.PasswordEntryResponse;
 import quest.gekko.wallet.vault.dto.response.VaultStatisticsResponse;
+import quest.gekko.wallet.vault.service.AgedPasswordService;
 import quest.gekko.wallet.vault.service.VaultService;
 import quest.gekko.wallet.audit.service.SecurityAuditService;
 import quest.gekko.wallet.security.session.service.SessionManagementService;
@@ -32,6 +33,7 @@ public class VaultController {
 
     private final VaultService vaultService;
     private final SecurityAuditService securityAuditService;
+    private final AgedPasswordService agedPasswordService;
     private final SessionManagementService sessionManagementService;
 
     @GetMapping("/vault/dashboard")
@@ -51,9 +53,12 @@ public class VaultController {
                     .map(PasswordEntryResponse::fromEntity)
                     .collect(Collectors.toList());
 
+            final int agedPasswordCount = agedPasswordService.getAgedPasswordCount(email);
+
             final VaultStatisticsResponse statistics = vaultService.getVaultStatistics(email);
 
             model.addAttribute("passwords", passwords);
+            model.addAttribute("agedPasswordCount", agedPasswordCount);
             model.addAttribute("statistics", statistics);
             model.addAttribute("remainingSessionTime", sessionManagementService.getRemainingSessionTimeMinutes(session));
 
