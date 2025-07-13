@@ -1,5 +1,5 @@
 window.WalletApp = window.WalletApp || {};
-WalletApp.Vault = {};
+WalletApp.Vault = WalletApp.Vault || {};
 
 WalletApp.Vault.init = () => {
     if (!document.querySelector('.dashboard-container')) return;
@@ -10,10 +10,31 @@ WalletApp.Vault.init = () => {
     WalletApp.Vault.currentEditName = null;
 
     WalletApp.Vault.checkVaultStatus();
-
     WalletApp.Vault.initEventListeners();
-
     WalletApp.Vault.generatePassword();
+
+    WalletApp.Vault.setupActivityTracking();
+};
+
+WalletApp.Vault.setupActivityTracking = () => {
+    const activityEvents = ['click', 'keypress', 'scroll', 'mousemove', 'touchstart'];
+
+    let lastActivity = Date.now();
+    const throttleMs = 30000;
+
+    const handleActivity = () => {
+        const now = Date.now();
+        if (now - lastActivity > throttleMs) {
+            lastActivity = now;
+            if (WalletApp.Vault.keyStorage) {
+                WalletApp.Vault.keyStorage.extendTimeout();
+            }
+        }
+    };
+
+    activityEvents.forEach(event => {
+        document.addEventListener(event, handleActivity, { passive: true });
+    });
 };
 
 WalletApp.Vault.checkVaultStatus = () => {
@@ -21,13 +42,29 @@ WalletApp.Vault.checkVaultStatus = () => {
 
     if (rows.length > 0) {
         const firstPasswordInput = rows[0].children[1].querySelector('input');
-        if (!firstPasswordInput.value || firstPasswordInput.value === '••••••••••••') {
+
+        if (firstPasswordInput.value && firstPasswordInput.value !== '••••••••••••') {
+            WalletApp.Vault.keyStorage.vaultUnlocked = true;
+
+            try {
+                sessionStorage.setItem('vaultUnlocked', 'true');
+                sessionStorage.setItem('vaultUnlockedTime', Date.now().toString());
+            } catch (e) {
+                // Ignore if sessionStorage not available
+            }
+            return;
+        }
+
+        if (WalletApp.Vault.keyStorage.isAvailable()) {
+            console.log('Vault should still be unlocked, but passwords are encrypted. Prompting for master password.');
             WalletApp.Vault.showMasterPasswordModal();
             return;
-        } else {
-            WalletApp.Vault.keyStorage.vaultUnlocked = true;
         }
-    } else if (WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked) {
+
+        if (!WalletApp.Vault.keyStorage.isAvailable()) {
+            WalletApp.Vault.showMasterPasswordModal();
+        }
+    } else if (WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.isAvailable()) {
         WalletApp.Vault.showMasterPasswordModal();
     }
 };
@@ -35,10 +72,17 @@ WalletApp.Vault.checkVaultStatus = () => {
 WalletApp.Vault.showMasterPasswordModal = () => {
     WalletApp.Vault.updateMasterPasswordModal(WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked);
     document.getElementById("masterPasswordModal").classList.remove('hidden');
+
+    setTimeout(() => {
+        const input = document.getElementById("masterPasswordInput");
+        if (input) input.focus();
+    }, 100);
 };
 
 WalletApp.Vault.hideMasterPasswordModal = () => {
     document.getElementById("masterPasswordModal").classList.add('hidden');
+    document.getElementById("masterPasswordInput").value = '';
+    document.getElementById("unlockError").classList.add('hidden');
 };
 
 WalletApp.Vault.updateMasterPasswordModal = (isFirstTime) => {
@@ -130,8 +174,7 @@ WalletApp.Vault.unlockVault = async (password) => {
         const salt = WalletApp.Crypto.base64ToArrayBuffer(td.getAttribute("data-salt"));
 
         try {
-            const decryptedPassword = await WalletApp.Crypto.decryptPassword(encrypted, iv, salt, password);
-            td.querySelector("input").value = decryptedPassword;
+            td.querySelector("input").value = await WalletApp.Crypto.decryptPassword(encrypted, iv, salt, password);
             decryptionSuccessful = true;
         } catch (error) {
             console.error('Decryption failed for entry:', error);
@@ -144,16 +187,24 @@ WalletApp.Vault.unlockVault = async (password) => {
         await WalletApp.Vault.keyStorage.set(password);
         WalletApp.Vault.hideMasterPasswordModal();
         WalletApp.showToast(`Vault unlocked! Found ${rows.length} password${rows.length !== 1 ? 's' : ''}.`);
+
+        document.getElementById("unlockError").classList.add('hidden');
     }
 };
 
 WalletApp.Vault.requireMasterPassword = (callback) => {
-    if (!WalletApp.Vault.keyStorage.isAvailable()) {
+    if (WalletApp.Vault.keyStorage.isAvailable()) {
+        WalletApp.Vault.keyStorage.extendTimeout();
+        return true;
+    }
+
+    if (WalletApp.Vault.keyStorage.shouldShowUnlockModal()) {
+        console.log('Master password required for action');
         WalletApp.Vault.showMasterPasswordModal();
         window.pendingAction = callback;
         return false;
     }
-    WalletApp.Vault.keyStorage.extendTimeout();
+
     return true;
 };
 
@@ -348,34 +399,22 @@ WalletApp.Vault.initEventListeners = () => {
 
     document.getElementById("masterPasswordInput")?.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
-            WalletApp.Vault.submitMasterPassword();
+            WalletApp.Vault.submitMasterPassword().catch(console.error);
         }
     });
 
     document.getElementById("editPasswordInput")?.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
-            WalletApp.Vault.handleEditSubmit();
+            WalletApp.Vault.handleEditSubmit().catch(console.error);
         }
     });
 
     document.addEventListener('click', (e) => {
-        if (WalletApp.Vault.keyStorage) {
-            WalletApp.Vault.keyStorage.extendTimeout();
-        }
-
         if (e.target.classList.contains('modal-overlay')) {
             if (e.target.id === 'editModal') {
                 WalletApp.Vault.closeEditModal();
             }
         }
-    });
-
-    ['keypress', 'scroll', 'mousemove'].forEach(event => {
-        document.addEventListener(event, () => {
-            if (WalletApp.Vault.keyStorage) {
-                WalletApp.Vault.keyStorage.extendTimeout();
-            }
-        });
     });
 };
 
@@ -388,3 +427,5 @@ window.closeEditModal = () => WalletApp.Vault.closeEditModal();
 document.addEventListener('DOMContentLoaded', () => {
     WalletApp.Vault.init();
 });
+
+console.log('WalletApp.Vault module loaded');

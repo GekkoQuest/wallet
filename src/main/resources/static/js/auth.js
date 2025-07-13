@@ -1,5 +1,5 @@
 window.WalletApp = window.WalletApp || {};
-WalletApp.Auth = {};
+WalletApp.Auth = WalletApp.Auth || {};
 
 WalletApp.Auth.initLogin = () => {
     const form = document.getElementById('loginForm');
@@ -128,3 +128,5 @@ document.addEventListener('DOMContentLoaded', () => {
         WalletApp.Auth.initVerify();
     }
 });
+
+console.log('WalletApp.Auth module loaded');

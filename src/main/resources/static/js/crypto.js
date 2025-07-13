@@ -1,5 +1,5 @@
 window.WalletApp = window.WalletApp || {};
-WalletApp.Crypto = {};
+WalletApp.Crypto = WalletApp.Crypto || {};
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -75,6 +75,7 @@ WalletApp.Crypto.SecureKeyStorage = class {
         this.keyTimeout = null;
         this.vaultUnlocked = false;
         this.KEY_TIMEOUT_MINUTES = 15;
+        this.lastActivityTime = Date.now();
     }
 
     async set(password) {
@@ -91,6 +92,15 @@ WalletApp.Crypto.SecureKeyStorage = class {
 
             this.derivedKey = { keyMaterial, password: password };
             this.vaultUnlocked = true;
+            this.lastActivityTime = Date.now();
+
+            try {
+                sessionStorage.setItem('vaultUnlocked', 'true');
+                sessionStorage.setItem('vaultUnlockedTime', this.lastActivityTime.toString());
+            } catch (e) {
+                console.warn('SessionStorage not available, using memory only');
+            }
+
             this.resetTimeout();
             return true;
         } catch (error) {
@@ -104,23 +114,68 @@ WalletApp.Crypto.SecureKeyStorage = class {
             const randomStr = crypto.getRandomValues(new Uint8Array(this.derivedKey.password.length));
             this.derivedKey.password = String.fromCharCode(...randomStr);
         }
+
         this.derivedKey = null;
         this.vaultUnlocked = false;
+        this.lastActivityTime = 0;
+
+        try {
+            sessionStorage.removeItem('vaultUnlocked');
+            sessionStorage.removeItem('vaultUnlockedTime');
+        } catch (e) {
+            // Ignore if sessionStorage not available
+        }
+
         clearTimeout(this.keyTimeout);
         this.keyTimeout = null;
     }
 
     isAvailable() {
-        return this.derivedKey !== null && this.vaultUnlocked;
+        if (this.derivedKey !== null && this.vaultUnlocked) {
+            return true;
+        }
+
+        try {
+            const wasUnlocked = sessionStorage.getItem('vaultUnlocked');
+            const unlockedTime = parseInt(sessionStorage.getItem('vaultUnlockedTime') || '0');
+            const now = Date.now();
+            const timeElapsed = now - unlockedTime;
+            const maxAge = this.KEY_TIMEOUT_MINUTES * 60 * 1000;
+
+            if (wasUnlocked === 'true' && timeElapsed < maxAge) {
+                this.vaultUnlocked = true;
+                this.lastActivityTime = now;
+                return true;
+            }
+        } catch (e) {
+            // SessionStorage not available, fall back to memory only
+        }
+
+        return false;
     }
 
     resetTimeout() {
         clearTimeout(this.keyTimeout);
+        this.lastActivityTime = Date.now();
+
+        try {
+            sessionStorage.setItem('vaultUnlockedTime', this.lastActivityTime.toString());
+        } catch (e) {
+            // Ignore if sessionStorage not available
+        }
+
         this.keyTimeout = setTimeout(() => {
+            console.log('Master password session expired after', this.KEY_TIMEOUT_MINUTES, 'minutes of inactivity');
             this.clear();
-            WalletApp.showToast('Session expired. Please enter your master password again.', 'warning');
-            if (window.WalletApp && window.WalletApp.Vault) {
-                window.WalletApp.Vault.showMasterPasswordModal();
+            if (typeof WalletApp !== 'undefined' && WalletApp.showToast) {
+                WalletApp.showToast('Session expired due to inactivity. Please enter your master password again.', 'warning');
+            }
+
+            if (window.location.pathname.startsWith('/vault/') &&
+                typeof WalletApp !== 'undefined' &&
+                WalletApp.Vault &&
+                WalletApp.Vault.showMasterPasswordModal) {
+                WalletApp.Vault.showMasterPasswordModal();
             }
         }, this.KEY_TIMEOUT_MINUTES * 60 * 1000);
     }
@@ -137,6 +192,10 @@ WalletApp.Crypto.SecureKeyStorage = class {
 
     getPassword() {
         return this.derivedKey ? this.derivedKey.password : null;
+    }
+
+    shouldShowUnlockModal() {
+        return !this.isAvailable();
     }
 };
 
@@ -216,3 +275,5 @@ WalletApp.Crypto.generatePassword = (options = {}) => {
 
     return Array.from(array, x => charset[x % charset.length]).join('');
 };
+
+console.log('WalletApp.Crypto module loaded');

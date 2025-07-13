@@ -1,5 +1,9 @@
 window.WalletApp = window.WalletApp || {};
 
+WalletApp.Auth = WalletApp.Auth || {};
+WalletApp.Crypto = WalletApp.Crypto || {};
+WalletApp.Vault = WalletApp.Vault || {};
+
 WalletApp.showToast = (message, type = 'success') => {
     const toast = document.getElementById('toast');
     if (!toast) return;
@@ -104,4 +108,10 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         document.head.appendChild(style);
     }
+
+    console.log('WalletApp initialized:', {
+        Auth: typeof WalletApp.Auth,
+        Crypto: typeof WalletApp.Crypto,
+        Vault: typeof WalletApp.Vault
+    });
 });
