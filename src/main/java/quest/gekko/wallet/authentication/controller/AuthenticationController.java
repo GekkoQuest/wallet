@@ -28,7 +28,7 @@ import quest.gekko.wallet.security.util.SecurityUtil;
 public class AuthenticationController {
     private static final String LOGIN_VIEW = "auth/login";
     private static final String VERIFY_VIEW = "auth/verify";
-    private static final String DASHBOARD_REDIRECT = "redirect:/dashboard";
+    private static final String DASHBOARD_REDIRECT = "redirect:/vault/dashboard";
     private static final String LOGIN_REDIRECT = "redirect:/";
 
     private final AuthenticationService authenticationService;
@@ -156,7 +156,7 @@ public class AuthenticationController {
 
         if (!sessionSetup) {
             log.error("Failed to setup authenticated session for user: {}", SecurityUtil.maskEmail(user.getEmail()));
-            return "redirect:/verify?error=session";
+            return "redirect:/auth/verify?error=session";
         }
 
         securityAuditService.logSecurityEvent(

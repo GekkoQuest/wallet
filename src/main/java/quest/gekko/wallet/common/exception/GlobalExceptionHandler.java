@@ -117,7 +117,7 @@ public class GlobalExceptionHandler {
             final HttpServletRequest request) {
         log.warn("Vault access exception from IP {}: {}", getClientIp(request), e.getMessage());
         redirectAttributes.addFlashAttribute("error", "Access denied. Please check your permissions.");
-        return "redirect:/dashboard";
+        return "redirect:/vault/dashboard";
     }
 
     @ExceptionHandler(VaultException.class)
@@ -136,7 +136,7 @@ public class GlobalExceptionHandler {
         };
 
         redirectAttributes.addFlashAttribute("error", errorMessage);
-        return "redirect:/dashboard";
+        return "redirect:/vault/dashboard";
     }
 
     @ExceptionHandler(InputValidationException.class)
@@ -164,7 +164,7 @@ public class GlobalExceptionHandler {
                 .orElse("Validation error occurred");
 
         redirectAttributes.addFlashAttribute("error", errorMessage);
-        return "redirect:/dashboard";
+        return "redirect:/vault/dashboard";
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -181,7 +181,7 @@ public class GlobalExceptionHandler {
                 .orElse("Validation constraint violation");
 
         redirectAttributes.addFlashAttribute("error", errorMessage);
-        return "redirect:/dashboard";
+        return "redirect:/vault/dashboard";
     }
 
     @ExceptionHandler(SecurityException.class)
@@ -192,7 +192,7 @@ public class GlobalExceptionHandler {
             final HttpServletRequest request) {
         log.error("Security exception from IP {}: {}", getClientIp(request), e.getMessage());
         redirectAttributes.addFlashAttribute("error", MessageConstants.UNAUTHORIZED_ACCESS);
-        return "redirect:/dashboard";
+        return "redirect:/vault/dashboard";
     }
 
     @ExceptionHandler(Exception.class)

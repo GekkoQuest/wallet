@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class VaultController {
     private static final String DASHBOARD_VIEW = "vault/dashboard";
     private static final String LOGIN_REDIRECT = "redirect:/";
-    private static final String DASHBOARD_REDIRECT = "redirect:/dashboard";
+    private static final String DASHBOARD_REDIRECT = "redirect:/vault/dashboard";
 
     private final VaultService vaultService;
     private final SecurityAuditService securityAuditService;
