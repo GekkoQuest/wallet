@@ -1,4 +1,4 @@
-package quest.gekko.wallet.security.ratelimit.service;
+package quest.gekko.wallet.ratelimit.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

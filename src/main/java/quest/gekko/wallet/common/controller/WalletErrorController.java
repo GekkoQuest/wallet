@@ -1,4 +1,4 @@
-package quest.gekko.wallet.web.controller;
+package quest.gekko.wallet.common.controller;
 
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;

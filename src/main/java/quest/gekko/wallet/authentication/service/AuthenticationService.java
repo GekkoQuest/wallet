@@ -11,9 +11,8 @@ import quest.gekko.wallet.authentication.entity.VerificationCode;
 import quest.gekko.wallet.common.exception.RateLimitExceededException;
 import quest.gekko.wallet.user.repository.UserRepository;
 import quest.gekko.wallet.authentication.repository.VerificationCodeRepository;
-import quest.gekko.wallet.common.email.service.EmailService;
-import quest.gekko.wallet.security.ratelimit.service.RateLimitingService;
-import quest.gekko.wallet.security.audit.service.SecurityAuditService;
+import quest.gekko.wallet.ratelimit.service.RateLimitingService;
+import quest.gekko.wallet.audit.service.SecurityAuditService;
 import quest.gekko.wallet.security.util.SecurityUtil;
 
 import java.security.SecureRandom;

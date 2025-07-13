@@ -7,8 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-import quest.gekko.wallet.security.audit.service.SecurityAuditService;
-import quest.gekko.wallet.security.authentication.service.SessionManagementService;
+import quest.gekko.wallet.audit.service.SecurityAuditService;
+import quest.gekko.wallet.security.session.service.SessionManagementService;
 import quest.gekko.wallet.security.util.SecurityUtil;
 
 @Component

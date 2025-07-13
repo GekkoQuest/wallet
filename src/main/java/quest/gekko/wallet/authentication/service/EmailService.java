@@ -1,4 +1,4 @@
-package quest.gekko.wallet.common.email.service;
+package quest.gekko.wallet.authentication.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

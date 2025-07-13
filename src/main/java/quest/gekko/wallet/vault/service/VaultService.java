@@ -10,7 +10,7 @@ import quest.gekko.wallet.vault.entity.PasswordEntry;
 import quest.gekko.wallet.vault.exception.VaultAccessException;
 import quest.gekko.wallet.common.exception.InputValidationException;
 import quest.gekko.wallet.vault.repository.PasswordEntryRepository;
-import quest.gekko.wallet.security.validation.service.InputSanitizationService;
+import quest.gekko.wallet.validation.service.InputSanitizationService;
 import quest.gekko.wallet.security.util.SecurityUtil;
 
 import java.time.LocalDateTime;
@@ -20,7 +20,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PasswordManagementService {
+public class VaultService {
     private final PasswordEntryRepository passwordEntryRepository;
     private final InputSanitizationService inputSanitizationService;
     private final ApplicationProperties applicationProperties;

@@ -1,4 +1,4 @@
-package quest.gekko.wallet.web.controller;
+package quest.gekko.wallet.common.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -6,7 +6,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.web.bind.annotation.*;
-import quest.gekko.wallet.common.email.service.EmailService;
+import quest.gekko.wallet.authentication.service.EmailService;
 
 import java.util.HashMap;
 import java.util.Map;

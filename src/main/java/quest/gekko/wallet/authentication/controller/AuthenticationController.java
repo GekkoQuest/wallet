@@ -18,8 +18,8 @@ import quest.gekko.wallet.user.entity.User;
 import quest.gekko.wallet.authentication.exception.AuthenticationException;
 import quest.gekko.wallet.common.exception.RateLimitExceededException;
 import quest.gekko.wallet.authentication.service.AuthenticationService;
-import quest.gekko.wallet.security.audit.service.SecurityAuditService;
-import quest.gekko.wallet.security.authentication.service.SessionManagementService;
+import quest.gekko.wallet.audit.service.SecurityAuditService;
+import quest.gekko.wallet.security.session.service.SessionManagementService;
 import quest.gekko.wallet.security.util.SecurityUtil;
 
 @Controller

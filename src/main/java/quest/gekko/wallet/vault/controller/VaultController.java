@@ -14,9 +14,9 @@ import quest.gekko.wallet.vault.dto.request.EditPasswordRequest;
 import quest.gekko.wallet.vault.dto.request.SavePasswordRequest;
 import quest.gekko.wallet.vault.dto.response.PasswordEntryResponse;
 import quest.gekko.wallet.vault.dto.response.VaultStatisticsResponse;
-import quest.gekko.wallet.vault.service.PasswordManagementService;
-import quest.gekko.wallet.security.audit.service.SecurityAuditService;
-import quest.gekko.wallet.security.authentication.service.SessionManagementService;
+import quest.gekko.wallet.vault.service.VaultService;
+import quest.gekko.wallet.audit.service.SecurityAuditService;
+import quest.gekko.wallet.security.session.service.SessionManagementService;
 import quest.gekko.wallet.security.util.SecurityUtil;
 
 import java.util.List;
@@ -30,7 +30,7 @@ public class VaultController {
     private static final String LOGIN_REDIRECT = "redirect:/";
     private static final String DASHBOARD_REDIRECT = "redirect:/dashboard";
 
-    private final PasswordManagementService passwordManagementService;
+    private final VaultService vaultService;
     private final SecurityAuditService securityAuditService;
     private final SessionManagementService sessionManagementService;
 
@@ -46,12 +46,12 @@ public class VaultController {
         }
 
         try {
-            final List<PasswordEntryResponse> passwords = passwordManagementService.getPasswordsByEmail(email)
+            final List<PasswordEntryResponse> passwords = vaultService.getPasswordsByEmail(email)
                     .stream()
                     .map(PasswordEntryResponse::fromEntity)
                     .collect(Collectors.toList());
 
-            final VaultStatisticsResponse statistics = passwordManagementService.getVaultStatistics(email);
+            final VaultStatisticsResponse statistics = vaultService.getVaultStatistics(email);
 
             model.addAttribute("passwords", passwords);
             model.addAttribute("statistics", statistics);
@@ -90,7 +90,7 @@ public class VaultController {
         final String clientIp = SecurityUtil.getClientIpAddress(httpRequest);
 
         try {
-            passwordManagementService.savePassword(
+            vaultService.savePassword(
                     email,
                     request.getName().trim(),
                     request.getEncrypted(),
@@ -135,7 +135,7 @@ public class VaultController {
         final String clientIp = SecurityUtil.getClientIpAddress(httpRequest);
 
         try {
-            passwordManagementService.editPassword(
+            vaultService.editPassword(
                     request.getId(),
                     request.getEncrypted(),
                     request.getIv(),
@@ -191,7 +191,7 @@ public class VaultController {
         final String clientIp = SecurityUtil.getClientIpAddress(httpRequest);
 
         try {
-            passwordManagementService.deletePassword(passwordId.trim(), email);
+            vaultService.deletePassword(passwordId.trim(), email);
 
             securityAuditService.logPasswordAccess(email, clientIp, "Password deleted: " + passwordId.trim());
             redirectAttributes.addFlashAttribute("success", "Password deleted successfully");
@@ -232,7 +232,7 @@ public class VaultController {
         }
 
         sessionManagementService.updateSessionActivity(session);
-        return passwordManagementService.getVaultStatistics(email);
+        return vaultService.getVaultStatistics(email);
     }
 
     @GetMapping("/vault/search")
@@ -251,7 +251,7 @@ public class VaultController {
             final List<PasswordEntryResponse> passwords;
 
             if (searchQuery != null && !searchQuery.trim().isEmpty()) {
-                passwords = passwordManagementService.searchPasswordsByName(email, searchQuery.trim())
+                passwords = vaultService.searchPasswordsByName(email, searchQuery.trim())
                         .stream()
                         .map(PasswordEntryResponse::fromEntity)
                         .collect(Collectors.toList());
@@ -259,13 +259,13 @@ public class VaultController {
                 final String clientIp = SecurityUtil.getClientIpAddress(request);
                 securityAuditService.logPasswordAccess(email, clientIp, "Password search: " + searchQuery.trim());
             } else {
-                passwords = passwordManagementService.getPasswordsByEmail(email)
+                passwords = vaultService.getPasswordsByEmail(email)
                         .stream()
                         .map(PasswordEntryResponse::fromEntity)
                         .collect(Collectors.toList());
             }
 
-            final VaultStatisticsResponse statistics = passwordManagementService.getVaultStatistics(email);
+            final VaultStatisticsResponse statistics = vaultService.getVaultStatistics(email);
 
             model.addAttribute("passwords", passwords);
             model.addAttribute("statistics", statistics);

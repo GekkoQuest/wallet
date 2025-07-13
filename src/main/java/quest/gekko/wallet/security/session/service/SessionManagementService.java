@@ -1,4 +1,4 @@
-package quest.gekko.wallet.security.authentication.service;
+package quest.gekko.wallet.security.session.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
