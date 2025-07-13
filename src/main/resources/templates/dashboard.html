@@ -12,7 +12,10 @@
 </head>
 <body>
 <div class="container dashboard-container">
-    <h2>🔐 Password Vault</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h2 style="margin: 0;">🔐 Password Vault</h2>
+        <a href="/vault/analytics" class="btn btn-outline">📊 Vault Analytics</a>
+    </div>
 
     <!-- Master Password Modal -->
     <div id="masterPasswordModal" class="modal-overlay">
@@ -187,18 +190,15 @@
 <div id="toast" class="toast"></div>
 
 <script>
-    // Application State
     let derivedKey = null;
     let keyTimeout = null;
     let isFirstTimeVault = document.querySelectorAll("tbody tr").length === 0;
     let currentEditId = null;
     let currentEditName = null;
 
-    // Security constants
     const KEY_TIMEOUT_MINUTES = 15;
     const MIN_PASSWORD_LENGTH = 12;
 
-    // Security Functions
     const validatePasswordStrength = (password) => {
         const checks = {
             length: password.length >= MIN_PASSWORD_LENGTH,
@@ -292,7 +292,6 @@
 
         clear: () => {
             if (derivedKey && derivedKey.password) {
-                // Overwrite the password string with random data
                 const randomStr = crypto.getRandomValues(new Uint8Array(derivedKey.password.length));
                 derivedKey.password = String.fromCharCode(...randomStr);
             }
@@ -363,7 +362,6 @@
         try {
             let keyMaterial;
 
-            // Use secure key storage if available
             if (secureKeyStorage.isAvailable() && derivedKey.keyMaterial) {
                 keyMaterial = derivedKey.keyMaterial;
             } else {
@@ -418,7 +416,6 @@
         }
     };
 
-    // Function to update modal for new vs returning users
     const updateMasterPasswordModal = (isFirstTime) => {
         const modalTitle = document.getElementById("modalTitle");
         const modalDisclaimer = document.querySelector(".modal-disclaimer");
@@ -426,7 +423,6 @@
         const masterPasswordInput = document.getElementById("masterPasswordInput");
 
         if (isFirstTime) {
-            // First-time user - setting up vault
             modalTitle.innerHTML = "🔐 Set Your Master Password";
             unlockBtnText.textContent = "🔒 Create Vault";
             masterPasswordInput.placeholder = "Create a strong master password";
@@ -437,7 +433,6 @@
                 <strong>Choose a strong, memorable password - you cannot recover it if forgotten!</strong>
             `;
         } else {
-            // Returning user - unlocking existing vault
             modalTitle.innerHTML = "🔑 Unlock Your Vault";
             unlockBtnText.textContent = "🔓 Unlock Vault";
             masterPasswordInput.placeholder = "Enter your master password";
@@ -449,7 +444,6 @@
         }
     };
 
-    // Master Password Functions
     const submitMasterPassword = async () => {
         const pw = document.getElementById("masterPasswordInput").value.trim();
         const errorElement = document.getElementById("unlockError");
@@ -464,7 +458,6 @@
             return;
         }
 
-        // Validate master password strength for first-time setup
         if (isFirstTimeVault) {
             const strengthCheck = validatePasswordStrength(pw);
             if (!strengthCheck.isStrong) {
@@ -525,7 +518,6 @@
         }
     };
 
-    // Password Generator Functions
     const generatePassword = () => {
         const charsetMap = {
             includeUpper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -548,16 +540,12 @@
             return;
         }
 
-        // Generate cryptographically secure random password
         const array = new Uint32Array(length);
         crypto.getRandomValues(array);
-        const password = Array.from(array, x => charset[x % charset.length]).join('');
-
-        document.getElementById("generatedPasswordInput").value = password;
+        document.getElementById("generatedPasswordInput").value = Array.from(array, x => charset[x % charset.length]).join('');
         showToast('Password generated successfully!');
     };
 
-    // Password Management Functions
     const toggleVisibility = (id, toggleBtn) => {
         extendKeyTimeout(); // Extend session on activity
         const input = document.getElementById(id);
@@ -597,7 +585,6 @@
         }
     };
 
-    // Modal Functions
     const openEditModal = (id, inputId, name) => {
         currentEditId = id;
         currentEditName = name;
@@ -612,7 +599,6 @@
         currentEditName = null;
     };
 
-    // Form Submit Handlers
     const handleEditSubmit = async () => {
         const newPassword = document.getElementById("editPasswordInput").value;
 
@@ -621,7 +607,6 @@
             return;
         }
 
-        // Validate password strength
         const strengthCheck = validatePasswordStrength(newPassword);
         if (!strengthCheck.isStrong) {
             showToast('Password is too weak. Please choose a stronger password.', 'error');
@@ -674,8 +659,6 @@
             showToast('Please generate a password first', 'error');
             return;
         }
-
-        // Validate generated password strength
         const strengthCheck = validatePasswordStrength(plaintext);
         if (!strengthCheck.isStrong) {
             showToast('Generated password is too weak. Please generate a stronger one.', 'error');
@@ -713,12 +696,10 @@
         }
     };
 
-    // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
         // Update modal content based on user status
         updateMasterPasswordModal(isFirstTimeVault);
 
-        // Edit button event listeners
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const id = btn.getAttribute('data-id');
@@ -728,11 +709,9 @@
             });
         });
 
-        // Modal event listeners
         document.getElementById("confirmEditBtn").addEventListener("click", handleEditSubmit);
         document.getElementById("generateForm").addEventListener("submit", handleGenerateSubmit);
 
-        // Master password input enter key and strength validation
         document.getElementById("masterPasswordInput").addEventListener("keypress", (e) => {
             if (e.key === "Enter") {
                 submitMasterPassword();
@@ -758,7 +737,6 @@
         generatePassword();
     });
 
-    // Close modals when clicking outside
     document.addEventListener('click', (e) => {
         extendKeyTimeout(); // Extend timeout on any click
 
@@ -769,7 +747,6 @@
         }
     });
 
-    // Extend timeout on any user activity
     document.addEventListener('keypress', extendKeyTimeout);
     document.addEventListener('scroll', extendKeyTimeout);
     document.addEventListener('mousemove', extendKeyTimeout);

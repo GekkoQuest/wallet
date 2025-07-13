@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault Analytics - Wallet</title>
+    <div th:replace="~{fragments/favicon :: favicons}"></div>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container dashboard-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
+        <h2>📊 Vault Analytics</h2>
+        <a href="/dashboard" class="btn btn-outline">🔙 Back to Dashboard</a>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px;">
+        <div style="background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Total Passwords</h3>
+                    <div style="font-size: 2.5rem; font-weight: 700; margin: 0;" th:text="${statistics.totalPasswords}">0</div>
+                </div>
+                <div style="font-size: 3rem; opacity: 0.7;">🔐</div>
+            </div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, var(--success-color), var(--success-dark)); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Vault Usage</h3>
+                    <div style="font-size: 2.5rem; font-weight: 700; margin: 0;"
+                         th:text="${#numbers.formatDecimal(statistics.usagePercentage, 1, 1)} + '%'">0%</div>
+                </div>
+                <div style="font-size: 3rem; opacity: 0.7;">📈</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; margin-top: 15px; overflow: hidden;">
+                <div style="background: rgba(255,255,255,0.8); height: 100%; border-radius: 4px; transition: width 0.3s ease;"
+                     th:style="'width: ' + ${statistics.usagePercentage} + '%'"></div>
+            </div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, var(--info-color), #2563eb); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Recent Activity</h3>
+                    <div style="font-size: 2.5rem; font-weight: 700; margin: 0;" th:text="${statistics.recentlyAccessedCount}">0</div>
+                    <div style="font-size: 0.875rem; opacity: 0.8; margin-top: 5px;">Last 7 days</div>
+                </div>
+                <div style="font-size: 3rem; opacity: 0.7;">⚡</div>
+            </div>
+        </div>
+
+        <div th:class="${statistics.nearLimit} ? 'card-warning' : 'card-normal'"
+             style="background: linear-gradient(135deg, var(--warning-color), #d97706); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Storage Limit</h3>
+                    <div style="font-size: 1.5rem; font-weight: 700; margin: 0;">
+                        <span th:text="${statistics.totalPasswords}">0</span> /
+                        <span th:text="${statistics.maxPasswordsAllowed}">1000</span>
+                    </div>
+                    <div style="font-size: 0.875rem; opacity: 0.8; margin-top: 5px;"
+                         th:text="${statistics.maxPasswordsAllowed - statistics.totalPasswords} + ' remaining'">999 remaining</div>
+                </div>
+                <div style="font-size: 3rem; opacity: 0.7;">💾</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); padding: 30px; margin-bottom: 30px; box-shadow: var(--shadow-md);">
+        <h3 style="margin-bottom: 20px;">🔍 Search Your Vault</h3>
+        <form action="/vault/analytics" method="get" style="display: flex; gap: 15px; align-items: end;">
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label" for="searchInput">Search by Service Name</label>
+                <input type="text"
+                       id="searchInput"
+                       name="query"
+                       th:value="${searchQuery}"
+                       placeholder="e.g., Gmail, GitHub, Netflix..."
+                       style="width: 100%;" />
+            </div>
+            <button type="submit" class="btn btn-primary">🔍 Search</button>
+            <a href="/vault/analytics" class="btn btn-outline" th:if="${searchQuery}">❌ Clear</a>
+        </form>
+
+        <div th:if="${searchQuery}" style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: var(--border-radius); border: 1px solid rgba(102, 126, 234, 0.2);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.2rem;">🎯</span>
+                <span>
+                    Found <strong th:text="${#lists.size(searchResults)}">0</strong> password(s)
+                    matching "<strong th:text="${searchQuery}">search term</strong>"
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${!#lists.isEmpty(recentlyAccessed)}" style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); padding: 30px; margin-bottom: 30px; box-shadow: var(--shadow-md);">
+        <h3 style="margin-bottom: 20px;">⚡ Recently Accessed (Last 7 Days)</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+            <div th:each="entry : ${recentlyAccessed}"
+                 style="background: rgba(255, 255, 255, 0.8); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 15px;">
+                <div style="font-weight: 600; margin-bottom: 5px;" th:text="${entry.name}">Service Name</div>
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                    Accessed <span th:text="${entry.accessCount}">0</span> times
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 5px;"
+                     th:if="${entry.lastAccessedAt}"
+                     th:text="'Last: ' + ${#temporals.format(entry.lastAccessedAt, 'MMM dd, HH:mm')}">
+                    Last: Dec 25, 14:30
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: var(--shadow-lg);">
+        <div style="padding: 30px 30px 0 30px;">
+            <h3 th:if="${searchQuery}" th:text="'🎯 Search Results (' + ${#lists.size(searchResults)} + ')'">🎯 Search Results (0)</h3>
+            <h3 th:unless="${searchQuery}">📋 All Passwords</h3>
+        </div>
+
+        <div th:if="${searchQuery ? #lists.isEmpty(searchResults) : #lists.isEmpty(passwords)}"
+             style="text-align: center; padding: 40px;">
+            <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
+            <p style="color: var(--text-secondary); font-size: 1.1rem;" th:if="${searchQuery}">
+                No passwords found matching "<span th:text="${searchQuery}">search term</span>"
+            </p>
+            <p style="color: var(--text-secondary); font-size: 1.1rem;" th:unless="${searchQuery}">
+                No passwords saved yet. Go to the dashboard to add some!
+            </p>
+            <a href="/dashboard" class="btn btn-primary" style="margin-top: 15px;">➕ Add Passwords</a>
+        </div>
+
+        <table th:if="${searchQuery ? !#lists.isEmpty(searchResults) : !#lists.isEmpty(passwords)}">
+            <thead>
+            <tr>
+                <th>🏷️ Service</th>
+                <th>📅 Created</th>
+                <th>🔄 Last Modified</th>
+                <th>👀 Access Count</th>
+                <th>⚡ Last Accessed</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="entry : ${searchQuery ? searchResults : passwords}">
+                <td>
+                    <strong th:text="${entry.name}">Service Name</strong>
+                </td>
+                <td th:text="${#temporals.format(entry.createdAt, 'MMM dd, yyyy')}">Dec 25, 2024</td>
+                <td th:text="${entry.lastModifiedAt != null ? #temporals.format(entry.lastModifiedAt, 'MMM dd, yyyy') : 'Never'}">Never</td>
+                <td>
+                    <span style="background: rgba(102, 126, 234, 0.1); color: var(--primary-color); padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; font-weight: 600;"
+                          th:text="${entry.accessCount}">0</span>
+                </td>
+                <td th:text="${entry.lastAccessedAt != null ? #temporals.format(entry.lastAccessedAt, 'MMM dd, HH:mm') : 'Never'}">Never</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 40px;">
+        <a href="/dashboard" class="btn btn-primary">🏠 Back to Dashboard</a>
+        <a href="/logout" class="btn btn-outline">🚪 Logout</a>
+    </div>
+
+    <div th:replace="~{fragments/footer :: footer}"></div>
+</div>
+
+<div th:if="${error}" id="toast" class="toast error show" th:text="${error}"></div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const toast = document.getElementById('toast');
+        if (toast && toast.classList.contains('show')) {
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput && !searchInput.value) {
+            searchInput.focus();
+        }
+    });
+</script>
+</body>
+</html>

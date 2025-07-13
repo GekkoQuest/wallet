@@ -222,6 +222,62 @@ public class VaultController {
         }
     }
 
+    @GetMapping("/vault/analytics")
+    public String showVaultAnalytics(
+            @RequestParam(value = "query", required = false) final String searchQuery,
+            final HttpSession session,
+            final HttpServletRequest request,
+            final Model model) {
+        final String email = sessionManagementService.validateSessionAndGetEmail(session);
+
+        if (email == null) {
+            return LOGIN_REDIRECT;
+        }
+
+        try {
+            final VaultStatisticsResponse statistics = vaultService.getVaultStatistics(email);
+
+            final List<PasswordEntryResponse> passwords;
+            if (searchQuery != null && !searchQuery.trim().isEmpty()) {
+                passwords = vaultService.searchPasswordsByName(email, searchQuery.trim())
+                        .stream()
+                        .map(PasswordEntryResponse::fromEntity)
+                        .collect(Collectors.toList());
+
+                final String clientIp = SecurityUtil.getClientIpAddress(request);
+                securityAuditService.logPasswordAccess(email, clientIp, "Analytics search: " + searchQuery.trim());
+
+                model.addAttribute("searchQuery", searchQuery.trim());
+                model.addAttribute("searchResults", passwords);
+            } else {
+                passwords = vaultService.getPasswordsByEmail(email)
+                        .stream()
+                        .map(PasswordEntryResponse::fromEntity)
+                        .collect(Collectors.toList());
+            }
+
+            final List<PasswordEntryResponse> recentlyAccessed = vaultService.getRecentlyAccessedPasswords(email, 24 * 7)
+                    .stream()
+                    .map(PasswordEntryResponse::fromEntity)
+                    .collect(Collectors.toList());
+
+            model.addAttribute("statistics", statistics);
+            model.addAttribute("passwords", passwords);
+            model.addAttribute("recentlyAccessed", recentlyAccessed);
+            model.addAttribute("remainingSessionTime", sessionManagementService.getRemainingSessionTimeMinutes(session));
+
+            final String clientIp = SecurityUtil.getClientIpAddress(request);
+            securityAuditService.logPasswordAccess(email, clientIp, "Analytics page accessed");
+
+            sessionManagementService.updateSessionActivity(session);
+            return "vault-analytics";
+        } catch (final Exception e) {
+            log.error("Error loading vault analytics for user: {}", SecurityUtil.maskEmail(email), e);
+            model.addAttribute("error", "Unable to load vault analytics");
+            return DASHBOARD_REDIRECT;
+        }
+    }
+
     @GetMapping("/vault/statistics")
     @ResponseBody
     public VaultStatisticsResponse getVaultStatistics(final HttpSession session) {
