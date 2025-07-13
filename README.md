@@ -76,7 +76,7 @@ This project implements a **zero-knowledge password manager** where I experiment
 - **Input sanitization service** with validation rules
 - **Async processing** for email sending and background tasks
 
-### Frontend (Vanilla JavaScript)
+### Frontend (JavaScript)
 - **Web Crypto API** integration for client-side encryption/decryption
 - **Secure key management** with in-memory storage and timeout handling
 - **Progressive enhancement** with fallbacks for older browsers
@@ -179,28 +179,51 @@ export CLOUDFLARE_ENABLED=false
 
 ```
 src/main/java/quest/gekko/wallet/
-├── config/              # Security, CORS, and application configuration
-│   ├── SecurityConfig.java
-│   ├── CloudflareConfig.java
-│   └── properties/
-├── controller/          # Web controllers with comprehensive validation
-│   ├── AuthenticationController.java
-│   ├── VaultController.java
-│   └── EmailDebugController.java
-├── service/             # Business logic with security controls
-│   ├── AuthenticationService.java
-│   ├── PasswordManagementService.java
-│   ├── RateLimitingService.java
-│   ├── SecurityAuditService.java
-│   └── SessionManagementService.java
-├── repository/          # MongoDB data access layer
-├── entity/              # JPA entities with security constraints
-├── exception/           # Custom exception handling
-└── util/               # Security utilities and validation
+├── authentication/      # Email-based authentication and verification
+│   ├── controller/AuthenticationController.java
+│   ├── service/
+│   │   ├── AuthenticationService.java
+│   │   └── EmailService.java
+│   ├── entity/VerificationCode.java
+│   ├── repository/VerificationCodeRepository.java
+│   ├── exception/AuthenticationException.java
+│   └── dto/request/
+├── user/               # User entity and repository
+│   ├── entity/User.java
+│   └── repository/UserRepository.java
+├── vault/              # Password vault management
+│   ├── controller/VaultController.java
+│   ├── service/PasswordManagementService.java
+│   ├── entity/PasswordEntry.java
+│   ├── repository/PasswordEntryRepository.java
+│   ├── dto/
+│   │   ├── request/
+│   │   └── response/
+│   └── exception/
+├── audit/              # Security event logging and monitoring
+│   └── service/SecurityAuditService.java
+├── ratelimit/          # Rate limiting functionality
+│   └── service/RateLimitingService.java
+├── validation/         # Input validation and sanitization
+│   └── service/InputSanitizationService.java
+├── security/           # Core security infrastructure
+│   ├── config/
+│   │   ├── SecurityConfig.java
+│   │   └── CloudflareConfig.java
+│   ├── session/service/SessionManagementService.java
+│   ├── encryption/util/EncryptionUtil.java
+│   ├── interceptor/SecurityInterceptor.java
+│   └── util/SecurityUtil.java
+└── common/             # Shared utilities and configuration
+    ├── config/
+    ├── constants/
+    ├── controller/     # Utility controllers (debug, info, error)
+    ├── exception/      # Global exception handling
+    └── util/
 
 src/main/resources/
-├── static/css/         # Modern responsive design
-├── templates/          # Thymeleaf templates with security headers
+├── static/css/
+├── templates/
 └── application.properties
 ```
 
