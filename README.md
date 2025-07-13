@@ -249,4 +249,4 @@ This is a personal learning project, but if you spot any issues or have suggesti
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+AGPL-3.0 License - see [LICENSE](LICENSE) file for details.
