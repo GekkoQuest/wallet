@@ -84,10 +84,10 @@
                        style="width: 100%;" />
             </div>
             <button type="submit" class="btn btn-primary">🔍 Search</button>
-            <a href="/vault/analytics" class="btn btn-outline" th:if="${searchQuery}">❌ Clear</a>
+            <a href="/vault/analytics" class="btn btn-outline" th:if="${searchQuery != null and !searchQuery.trim().isEmpty()}">❌ Clear</a>
         </form>
 
-        <div th:if="${searchQuery}" style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: var(--border-radius); border: 1px solid rgba(102, 126, 234, 0.2);">
+        <div th:if="${searchQuery != null and !searchQuery.trim().isEmpty()}" style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: var(--border-radius); border: 1px solid rgba(102, 126, 234, 0.2);">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 1.2rem;">🎯</span>
                 <span>
@@ -118,23 +118,29 @@
 
     <div style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: var(--shadow-lg);">
         <div style="padding: 30px 30px 0 30px;">
-            <h3 th:if="${searchQuery}" th:text="'🎯 Search Results (' + ${#lists.size(searchResults)} + ')'">🎯 Search Results (0)</h3>
-            <h3 th:unless="${searchQuery}">📋 All Passwords</h3>
+            <h3 th:if="${searchQuery != null and !searchQuery.trim().isEmpty()}" th:text="'🎯 Search Results (' + ${#lists.size(searchResults)} + ')'">🎯 Search Results (0)</h3>
+            <h3 th:unless="${searchQuery != null and !searchQuery.trim().isEmpty()}">📋 All Passwords</h3>
         </div>
 
-        <div th:if="${searchQuery ? #lists.isEmpty(searchResults) : #lists.isEmpty(passwords)}"
+        <div th:if="${searchQuery != null and !searchQuery.trim().isEmpty() and #lists.isEmpty(searchResults)}"
              style="text-align: center; padding: 40px;">
             <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
-            <p style="color: var(--text-secondary); font-size: 1.1rem;" th:if="${searchQuery}">
+            <p style="color: var(--text-secondary); font-size: 1.1rem;">
                 No passwords found matching "<span th:text="${searchQuery}">search term</span>"
             </p>
-            <p style="color: var(--text-secondary); font-size: 1.1rem;" th:unless="${searchQuery}">
+            <a href="/dashboard" class="btn btn-primary" style="margin-top: 15px;">➕ Add Passwords</a>
+        </div>
+
+        <div th:if="${(searchQuery == null or searchQuery.trim().isEmpty()) and #lists.isEmpty(passwords)}"
+             style="text-align: center; padding: 40px;">
+            <div style="font-size: 3rem; margin-bottom: 20px;">🔒</div>
+            <p style="color: var(--text-secondary); font-size: 1.1rem;">
                 No passwords saved yet. Go to the dashboard to add some!
             </p>
             <a href="/dashboard" class="btn btn-primary" style="margin-top: 15px;">➕ Add Passwords</a>
         </div>
 
-        <table th:if="${searchQuery ? !#lists.isEmpty(searchResults) : !#lists.isEmpty(passwords)}">
+        <table th:if="${(searchQuery != null and !searchQuery.trim().isEmpty()) ? !#lists.isEmpty(searchResults) : !#lists.isEmpty(passwords)}">
             <thead>
             <tr>
                 <th>🏷️ Service</th>
@@ -145,7 +151,7 @@
             </tr>
             </thead>
             <tbody>
-            <tr th:each="entry : ${searchQuery ? searchResults : passwords}">
+            <tr th:each="entry : ${(searchQuery != null and !searchQuery.trim().isEmpty()) ? searchResults : passwords}">
                 <td>
                     <strong th:text="${entry.name}">Service Name</strong>
                 </td>

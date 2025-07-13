@@ -269,7 +269,7 @@ public class VaultService {
         }
     }
 
-    // Private validation methods
+
     private void validatePasswordInputs(final String email, final String name, final String encrypted, final String iv, final String salt) {
         validateEmailInput(email);
 
