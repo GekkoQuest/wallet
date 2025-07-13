@@ -17,8 +17,7 @@
         <a href="/vault/analytics" class="btn btn-outline">📊 Vault Analytics</a>
     </div>
 
-    <!-- Master Password Modal -->
-    <div id="masterPasswordModal" class="modal-overlay">
+    <div id="masterPasswordModal" class="modal-overlay hidden">
         <div class="modal-box">
             <h2 id="modalTitle">🔑 Unlock Your Vault</h2>
             <div class="form-group">
@@ -38,7 +37,6 @@
         </div>
     </div>
 
-    <!-- Edit Password Modal -->
     <div id="editModal" class="modal-overlay hidden">
         <div class="modal-box">
             <h2>✏️ Edit Password</h2>
@@ -54,7 +52,6 @@
         </div>
     </div>
 
-    <!-- Password Generator Section -->
     <div class="password-generator">
         <h3>🎲 Generate New Password</h3>
         <form id="generateForm">
@@ -104,7 +101,6 @@
         </form>
     </div>
 
-    <!-- Saved Passwords Section -->
     <div class="table-container">
         <h3>📋 Saved Passwords</h3>
         <div th:if="${#lists.isEmpty(passwords)}" class="text-center" style="padding: 40px;">
@@ -186,7 +182,6 @@
     <div th:replace="~{fragments/footer :: footer}"></div>
 </div>
 
-<!-- Toast Notification -->
 <div id="toast" class="toast"></div>
 
 <script>
@@ -195,6 +190,7 @@
     let isFirstTimeVault = document.querySelectorAll("tbody tr").length === 0;
     let currentEditId = null;
     let currentEditName = null;
+    let vaultUnlocked = false;
 
     const KEY_TIMEOUT_MINUTES = 15;
     const MIN_PASSWORD_LENGTH = 12;
@@ -220,68 +216,21 @@
         };
     };
 
-    const showPasswordStrength = (password, containerId) => {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-
-        const analysis = validatePasswordStrength(password);
-        const { checks, score, isStrong } = analysis;
-
-        let strengthClass = 'strength-weak';
-        let strengthText = 'Weak';
-        if (score >= 83) {
-            strengthClass = 'strength-strong';
-            strengthText = 'Strong';
-        } else if (score >= 50) {
-            strengthClass = 'strength-medium';
-            strengthText = 'Medium';
-        }
-
-        container.innerHTML = `
-            <div class="password-strength ${strengthClass}">
-                <div class="strength-bar">
-                    <div class="strength-fill" style="width: ${score}%"></div>
-                </div>
-                <div class="strength-text">${strengthText} (${Math.round(score)}%)</div>
-                <div class="strength-requirements">
-                    <div class="${checks.length ? 'req-met' : 'req-unmet'}">
-                        ${checks.length ? '✓' : '✗'} At least ${MIN_PASSWORD_LENGTH} characters
-                    </div>
-                    <div class="${checks.hasUpper ? 'req-met' : 'req-unmet'}">
-                        ${checks.hasUpper ? '✓' : '✗'} Uppercase letter (A-Z)
-                    </div>
-                    <div class="${checks.hasLower ? 'req-met' : 'req-unmet'}">
-                        ${checks.hasLower ? '✓' : '✗'} Lowercase letter (a-z)
-                    </div>
-                    <div class="${checks.hasNumbers ? 'req-met' : 'req-unmet'}">
-                        ${checks.hasNumbers ? '✓' : '✗'} Number (0-9)
-                    </div>
-                    <div class="${checks.hasSpecial ? 'req-met' : 'req-unmet'}">
-                        ${checks.hasSpecial ? '✓' : '✗'} Special character (!@#$%^&*)
-                    </div>
-                </div>
-            </div>
-        `;
-    };
-
     const secureKeyStorage = {
         set: async (password) => {
             try {
-                // Clear any existing key first
                 derivedKey = null;
 
-                // Import key material that can't be extracted
                 const keyMaterial = await crypto.subtle.importKey(
                     "raw",
                     new TextEncoder().encode(password),
                     { name: "PBKDF2" },
-                    false, // not extractable
+                    false,
                     ["deriveKey"]
                 );
 
-                // Store the key material reference (not the actual key)
-                derivedKey = { keyMaterial, password: password }; // Temporary - improve this
-
+                derivedKey = { keyMaterial, password: password };
+                vaultUnlocked = true;
                 resetKeyTimeout();
                 return true;
             } catch (error) {
@@ -296,12 +245,13 @@
                 derivedKey.password = String.fromCharCode(...randomStr);
             }
             derivedKey = null;
+            vaultUnlocked = false;
             clearTimeout(keyTimeout);
             keyTimeout = null;
         },
 
         isAvailable: () => {
-            return derivedKey !== null;
+            return derivedKey !== null && vaultUnlocked;
         }
     };
 
@@ -310,7 +260,7 @@
         keyTimeout = setTimeout(() => {
             secureKeyStorage.clear();
             showToast('Session expired. Please enter your master password again.', 'warning');
-            document.getElementById("masterPasswordModal").classList.remove('hidden');
+            showMasterPasswordModal();
         }, KEY_TIMEOUT_MINUTES * 60 * 1000);
     };
 
@@ -318,6 +268,15 @@
         if (secureKeyStorage.isAvailable()) {
             resetKeyTimeout();
         }
+    };
+
+    const showMasterPasswordModal = () => {
+        updateMasterPasswordModal(isFirstTimeVault && !vaultUnlocked);
+        document.getElementById("masterPasswordModal").classList.remove('hidden');
+    };
+
+    const hideMasterPasswordModal = () => {
+        document.getElementById("masterPasswordModal").classList.add('hidden');
     };
 
     const showToast = (message, type = 'success') => {
@@ -398,11 +357,11 @@
                 throw new Error('Master password required');
             }
 
-            extendKeyTimeout(); // Extend session on activity
+            extendKeyTimeout();
 
             const iv = crypto.getRandomValues(new Uint8Array(12));
             const salt = crypto.getRandomValues(new Uint8Array(16));
-            const password = derivedKey.password; // Get from secure storage
+            const password = derivedKey.password;
             const key = await deriveKey(password, salt);
             const encrypted = await crypto.subtle.encrypt(
                 { name: "AES-GCM", iv },
@@ -451,14 +410,14 @@
         errorElement.classList.add('hidden');
 
         if (!pw) {
-            const message = isFirstTimeVault ?
+            const message = isFirstTimeVault && !vaultUnlocked ?
                 'Please create your master password' :
                 'Please enter your master password';
             showToast(message, 'error');
             return;
         }
 
-        if (isFirstTimeVault) {
+        if (isFirstTimeVault && !vaultUnlocked) {
             const strengthCheck = validatePasswordStrength(pw);
             if (!strengthCheck.isStrong) {
                 showToast('Master password is too weak. Please choose a stronger password.', 'error');
@@ -469,22 +428,21 @@
         setButtonLoading('unlockBtn', true);
 
         try {
-            if (isFirstTimeVault) {
+            if (isFirstTimeVault && !vaultUnlocked) {
                 await secureKeyStorage.set(pw);
-                document.getElementById("masterPasswordModal").classList.add('hidden');
+                hideMasterPasswordModal();
                 showToast('Welcome! Your secure vault has been created.');
             } else {
                 await unlockVault(pw);
             }
         } catch (error) {
             console.error('Master password submission failed:', error);
-            const message = isFirstTimeVault ?
+            const message = isFirstTimeVault && !vaultUnlocked ?
                 'Failed to create vault. Please try again.' :
                 'An error occurred. Please try again.';
             showToast(message, 'error');
         } finally {
             setButtonLoading('unlockBtn', false);
-            // Clear the input for security
             document.getElementById("masterPasswordInput").value = '';
         }
     };
@@ -513,9 +471,20 @@
 
         if (decryptionSuccessful || rows.length === 0) {
             await secureKeyStorage.set(password);
-            document.getElementById("masterPasswordModal").classList.add('hidden');
+            hideMasterPasswordModal();
             showToast(`Vault unlocked! Found ${rows.length} password${rows.length !== 1 ? 's' : ''}.`);
         }
+    };
+
+    const requireMasterPassword = (callback) => {
+        if (!secureKeyStorage.isAvailable()) {
+            showMasterPasswordModal();
+            // Store the callback to execute after successful authentication
+            window.pendingAction = callback;
+            return false;
+        }
+        extendKeyTimeout();
+        return true;
     };
 
     const generatePassword = () => {
@@ -547,7 +516,8 @@
     };
 
     const toggleVisibility = (id, toggleBtn) => {
-        extendKeyTimeout(); // Extend session on activity
+        if (!requireMasterPassword(() => toggleVisibility(id, toggleBtn))) return;
+
         const input = document.getElementById(id);
         const isPassword = input.type === "password";
         input.type = isPassword ? "text" : "password";
@@ -555,6 +525,8 @@
     };
 
     const copyToClipboard = async (id) => {
+        if (!requireMasterPassword(() => copyToClipboard(id))) return;
+
         const input = document.getElementById(id);
         const originalType = input.type;
 
@@ -563,13 +535,10 @@
             return;
         }
 
-        extendKeyTimeout(); // Extend session on activity
-
         try {
             await navigator.clipboard.writeText(input.value);
             showToast('Password copied to clipboard!');
         } catch (error) {
-            // Fallback for older browsers
             if (originalType === 'password') input.type = 'text';
             input.select();
             input.setSelectionRange(0, input.value.length);
@@ -586,6 +555,8 @@
     };
 
     const openEditModal = (id, inputId, name) => {
+        if (!requireMasterPassword(() => openEditModal(id, inputId, name))) return;
+
         currentEditId = id;
         currentEditName = name;
         document.getElementById("editLabel").textContent = `Editing password for "${name}"`;
@@ -613,7 +584,8 @@
             return;
         }
 
-        extendKeyTimeout(); // Extend session on activity
+        if (!requireMasterPassword(() => handleEditSubmit())) return;
+
         setButtonLoading('editBtn', true);
 
         try {
@@ -659,13 +631,15 @@
             showToast('Please generate a password first', 'error');
             return;
         }
+
         const strengthCheck = validatePasswordStrength(plaintext);
         if (!strengthCheck.isStrong) {
             showToast('Generated password is too weak. Please generate a stronger one.', 'error');
             return;
         }
 
-        extendKeyTimeout(); // Extend session on activity
+        if (!requireMasterPassword(() => handleGenerateSubmit(e))) return;
+
         setButtonLoading('saveBtn', true);
 
         try {
@@ -696,9 +670,34 @@
         }
     };
 
+    const checkVaultStatus = () => {
+        const rows = document.querySelectorAll("tbody tr");
+
+        if (rows.length > 0) {
+            const firstPasswordInput = rows[0].children[1].querySelector('input');
+            if (!firstPasswordInput.value || firstPasswordInput.value === '••••••••••••') {
+                showMasterPasswordModal();
+            } else {
+                vaultUnlocked = true;
+            }
+        } else if (isFirstTimeVault && !vaultUnlocked) {
+            showMasterPasswordModal();
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
-        // Update modal content based on user status
-        updateMasterPasswordModal(isFirstTimeVault);
+        checkVaultStatus();
+
+        const originalSubmitMasterPassword = submitMasterPassword;
+        window.submitMasterPassword = async () => {
+            await originalSubmitMasterPassword();
+
+            if (window.pendingAction) {
+                const action = window.pendingAction;
+                window.pendingAction = null;
+                setTimeout(action, 100); // Small delay to ensure state is updated
+            }
+        };
 
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -718,27 +717,17 @@
             }
         });
 
-        document.getElementById("masterPasswordInput").addEventListener("input", (e) => {
-            // Removed password strength indicator
-        });
-
-        // Edit password input enter key and strength validation
         document.getElementById("editPasswordInput").addEventListener("keypress", (e) => {
             if (e.key === "Enter") {
                 handleEditSubmit();
             }
         });
 
-        document.getElementById("editPasswordInput").addEventListener("input", (e) => {
-            // Removed password strength indicator
-        });
-
-        // Auto-generate password on page load
         generatePassword();
     });
 
     document.addEventListener('click', (e) => {
-        extendKeyTimeout(); // Extend timeout on any click
+        extendKeyTimeout();
 
         if (e.target.classList.contains('modal-overlay')) {
             if (e.target.id === 'editModal') {

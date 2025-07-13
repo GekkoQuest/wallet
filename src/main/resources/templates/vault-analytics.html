@@ -21,7 +21,7 @@
         <div style="background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Total Passwords</h3>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9; color: inherit;">Total Passwords</h3>
                     <div style="font-size: 2.5rem; font-weight: 700; margin: 0;" th:text="${statistics.totalPasswords}">0</div>
                 </div>
                 <div style="font-size: 3rem; opacity: 0.7;">🔐</div>
@@ -31,7 +31,7 @@
         <div style="background: linear-gradient(135deg, var(--success-color), var(--success-dark)); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Vault Usage</h3>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9; color: inherit;">Vault Usage</h3>
                     <div style="font-size: 2.5rem; font-weight: 700; margin: 0;"
                          th:text="${#numbers.formatDecimal(statistics.usagePercentage, 1, 1)} + '%'">0%</div>
                 </div>
@@ -46,7 +46,7 @@
         <div style="background: linear-gradient(135deg, var(--info-color), #2563eb); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Recent Activity</h3>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9; color: inherit;">Recent Activity</h3>
                     <div style="font-size: 2.5rem; font-weight: 700; margin: 0;" th:text="${statistics.recentlyAccessedCount}">0</div>
                     <div style="font-size: 0.875rem; opacity: 0.8; margin-top: 5px;">Last 7 days</div>
                 </div>
@@ -58,7 +58,7 @@
              style="background: linear-gradient(135deg, var(--warning-color), #d97706); color: white; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9;">Storage Limit</h3>
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1rem; opacity: 0.9; color: inherit;">Storage Limit</h3>
                     <div style="font-size: 1.5rem; font-weight: 700; margin: 0;">
                         <span th:text="${statistics.totalPasswords}">0</span> /
                         <span th:text="${statistics.maxPasswordsAllowed}">1000</span>
@@ -72,7 +72,7 @@
     </div>
 
     <div style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); padding: 30px; margin-bottom: 30px; box-shadow: var(--shadow-md);">
-        <h3 style="margin-bottom: 20px;">🔍 Search Your Vault</h3>
+        <h3 class="colored-heading" style="color: var(--primary-color); margin-bottom: 20px;">🔍 Search Your Vault</h3>
         <form action="/vault/analytics" method="get" style="display: flex; gap: 15px; align-items: end;">
             <div class="form-group" style="flex: 1;">
                 <label class="form-label" for="searchInput">Search by Service Name</label>
@@ -99,7 +99,7 @@
     </div>
 
     <div th:if="${!#lists.isEmpty(recentlyAccessed)}" style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); padding: 30px; margin-bottom: 30px; box-shadow: var(--shadow-md);">
-        <h3 style="margin-bottom: 20px;">⚡ Recently Accessed (Last 7 Days)</h3>
+        <h3 class="colored-heading" style="color: var(--success-color); margin-bottom: 20px;">⚡ Recently Accessed (Last 7 Days)</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
             <div th:each="entry : ${recentlyAccessed}"
                  style="background: rgba(255, 255, 255, 0.8); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 15px;">
@@ -118,8 +118,8 @@
 
     <div style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: var(--shadow-lg);">
         <div style="padding: 30px 30px 0 30px;">
-            <h3 th:if="${searchQuery != null and !searchQuery.trim().isEmpty()}" th:text="'🎯 Search Results (' + ${#lists.size(searchResults)} + ')'">🎯 Search Results (0)</h3>
-            <h3 th:unless="${searchQuery != null and !searchQuery.trim().isEmpty()}">📋 All Passwords</h3>
+            <h3 class="colored-heading" style="color: var(--text-primary);" th:if="${searchQuery != null and !searchQuery.trim().isEmpty()}" th:text="'🎯 Search Results (' + ${#lists.size(searchResults)} + ')'">🎯 Search Results (0)</h3>
+            <h3 class="colored-heading" style="color: var(--text-primary);" th:unless="${searchQuery != null and !searchQuery.trim().isEmpty()}">📋 All Passwords</h3>
         </div>
 
         <div th:if="${searchQuery != null and !searchQuery.trim().isEmpty() and #lists.isEmpty(searchResults)}"
