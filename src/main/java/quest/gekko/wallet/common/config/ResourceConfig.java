@@ -17,7 +17,7 @@ public class ResourceConfig implements WebMvcConfigurer {
                 .addResourceLocations("classpath:/static/")
                 .setCachePeriod(3600);
 
-        registry.addResourceHandler("/favicon.ico", "/favicon-*.png", "/apple-touch-icon.png", "/android-chrome-*.png")
+        registry.addResourceHandler("/images/favicon.ico", "/images/favicon-*.png", "/images/apple-touch-icon.png", "/images/android-chrome-*.png")
                 .addResourceLocations("classpath:/static/")
                 .setCachePeriod(86400);
     }
