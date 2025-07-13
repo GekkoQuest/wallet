@@ -12,16 +12,69 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import quest.gekko.wallet.authentication.exception.AuthenticationException;
 import quest.gekko.wallet.common.constants.MessageConstants;
 import quest.gekko.wallet.security.util.SecurityUtil;
 import quest.gekko.wallet.vault.exception.VaultAccessException;
 import quest.gekko.wallet.vault.exception.VaultException;
 
+import java.util.Set;
+
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    // Hacky way, but it'll do for now.
+    private static final Set<String> POTENTIAL_BOT_INDICATORS = Set.of(
+            ".php", ".asp", ".jsp",
+            "wp-", "admin", "config", "setup", "install", "backup",
+            "phpmyadmin", "xmlrpc", "karma.conf", "package.json",
+            "composer.json", "main.yml", "docker-compose", "dockerfile",
+            ".env", ".git", ".ssh", "cgi-bin", "getcpuutil",
+            "helpers/", "scripts/", "uploads/", "robots.txt", "sitemap"
+    );
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String handleNoHandlerFound(
+            final NoHandlerFoundException e,
+            final Model model,
+            final HttpServletRequest request) {
+        final String requestURI = request.getRequestURI();
+        final String clientIp = getClientIp(request);
+
+        if (isLikelyBotRequest(requestURI)) {
+            log.debug("Bot/scanner request from IP {}: {} {}", clientIp, e.getHttpMethod(), requestURI);
+        } else {
+            log.info("Page not found from IP {}: {} {}", clientIp, e.getHttpMethod(), requestURI);
+        }
+
+        model.addAttribute("error", "The page you're looking for doesn't exist.");
+        model.addAttribute("requestUri", requestURI);
+        return "error/404";
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String handleNoResourceFound(
+            final NoResourceFoundException e,
+            final Model model,
+            final HttpServletRequest request) {
+        final String requestURI = request.getRequestURI();
+        final String clientIp = getClientIp(request);
+
+        if (isLikelyBotRequest(requestURI)) {
+            log.debug("Resource not found from IP {}: {}", clientIp, requestURI);
+        } else {
+            log.info("Resource not found from IP {}: {}", clientIp, requestURI);
+        }
+
+        model.addAttribute("error", "The resource you're looking for doesn't exist.");
+        model.addAttribute("requestUri", requestURI);
+        return "error/404";
+    }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
@@ -33,7 +86,6 @@ public class GlobalExceptionHandler {
         model.addAttribute("error", "Method not allowed. Please use the correct request method.");
         return "error";
     }
-
 
     @ExceptionHandler(AuthenticationException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
@@ -149,12 +201,30 @@ public class GlobalExceptionHandler {
             final Exception e,
             final Model model,
             final HttpServletRequest request) {
-        log.error("Unexpected error from IP {}: {}", getClientIp(request), e.getMessage(), e);
+        final String requestURI = request.getRequestURI();
+        final String clientIp = getClientIp(request);
+
+        if (isLikelyBotRequest(requestURI)) {
+            log.debug("Bot/scanner request to non-existent resource from IP {}: {}", clientIp, requestURI);
+            model.addAttribute("error", "The resource you're looking for doesn't exist.");
+            return "error/404";
+        }
+
+        log.error("Unexpected error from IP {}: {}", clientIp, e.getMessage(), e);
         model.addAttribute("error", MessageConstants.UNEXPECTED_ERROR);
         return "error";
     }
 
     private String getClientIp(final HttpServletRequest request) {
         return SecurityUtil.getClientIpAddress(request);
+    }
+
+    private boolean isLikelyBotRequest(final String requestURI) {
+        if (requestURI == null) return false;
+
+        final String uri = requestURI.toLowerCase();
+
+        return POTENTIAL_BOT_INDICATORS.stream().anyMatch(uri::contains) ||
+                (uri.contains("test") && (uri.contains(".js") || uri.contains(".json")));
     }
 }
