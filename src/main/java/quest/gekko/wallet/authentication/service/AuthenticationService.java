@@ -89,7 +89,6 @@ public class AuthenticationService {
     }
 
     @Scheduled(fixedRate = 300000)
-    @Transactional
     public void cleanupExpiredCodes() {
         final long deletedCount = verificationCodeRepository.countByExpiresAtBefore(LocalDateTime.now());
         verificationCodeRepository.deleteByExpiresAtBefore(LocalDateTime.now());
