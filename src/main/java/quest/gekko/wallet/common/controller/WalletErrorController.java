@@ -42,21 +42,21 @@ public class WalletErrorController implements ErrorController {
                 }
                 case 400 -> {
                     model.addAttribute("error", "Bad request. Please check your input and try again.");
-                    yield "error";
+                    yield "error/default";
                 }
                 case 429 -> {
                     model.addAttribute("error", "Too many requests. Please wait before trying again.");
-                    yield "error";
+                    yield "error/default";
                 }
                 default -> {
                     model.addAttribute("error", "An unexpected error occurred. Please try again.");
-                    yield "error";
+                    yield "error/default";
                 }
             };
         }
 
         model.addAttribute("error", "An unexpected error occurred. Please try again.");
         log.error("Unknown error occurred for URI: {} from IP: {}", requestUri, clientIp);
-        return "error";
+        return "error/default";
     }
 }

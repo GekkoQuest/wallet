@@ -1,0 +1,390 @@
+window.WalletApp = window.WalletApp || {};
+WalletApp.Vault = {};
+
+WalletApp.Vault.init = () => {
+    if (!document.querySelector('.dashboard-container')) return;
+
+    WalletApp.Vault.keyStorage = new WalletApp.Crypto.SecureKeyStorage();
+    WalletApp.Vault.isFirstTimeVault = document.querySelectorAll("tbody tr").length === 0;
+    WalletApp.Vault.currentEditId = null;
+    WalletApp.Vault.currentEditName = null;
+
+    WalletApp.Vault.checkVaultStatus();
+
+    WalletApp.Vault.initEventListeners();
+
+    WalletApp.Vault.generatePassword();
+};
+
+WalletApp.Vault.checkVaultStatus = () => {
+    const rows = document.querySelectorAll("tbody tr");
+
+    if (rows.length > 0) {
+        const firstPasswordInput = rows[0].children[1].querySelector('input');
+        if (!firstPasswordInput.value || firstPasswordInput.value === '••••••••••••') {
+            WalletApp.Vault.showMasterPasswordModal();
+            return;
+        } else {
+            WalletApp.Vault.keyStorage.vaultUnlocked = true;
+        }
+    } else if (WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked) {
+        WalletApp.Vault.showMasterPasswordModal();
+    }
+};
+
+WalletApp.Vault.showMasterPasswordModal = () => {
+    WalletApp.Vault.updateMasterPasswordModal(WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked);
+    document.getElementById("masterPasswordModal").classList.remove('hidden');
+};
+
+WalletApp.Vault.hideMasterPasswordModal = () => {
+    document.getElementById("masterPasswordModal").classList.add('hidden');
+};
+
+WalletApp.Vault.updateMasterPasswordModal = (isFirstTime) => {
+    const modalTitle = document.getElementById("modalTitle");
+    const modalDisclaimer = document.querySelector(".modal-disclaimer");
+    const unlockBtnText = document.getElementById("unlockBtnText");
+    const masterPasswordInput = document.getElementById("masterPasswordInput");
+
+    if (isFirstTime) {
+        modalTitle.innerHTML = "🔐 Set Your Master Password";
+        unlockBtnText.textContent = "🔒 Create Vault";
+        masterPasswordInput.placeholder = "Create a strong master password";
+
+        modalDisclaimer.innerHTML = `
+            🔒 <strong>Important:</strong> Your master password is the key to your vault.
+            It encrypts all your passwords and never leaves your browser.
+            <strong>Choose a strong, memorable password - you cannot recover it if forgotten!</strong>
+        `;
+    } else {
+        modalTitle.innerHTML = "🔑 Unlock Your Vault";
+        unlockBtnText.textContent = "🔓 Unlock Vault";
+        masterPasswordInput.placeholder = "Enter your master password";
+
+        modalDisclaimer.innerHTML = `
+            🔒 Your master password is never sent to our servers.
+            All encryption happens locally in your browser.
+        `;
+    }
+};
+
+WalletApp.Vault.submitMasterPassword = async () => {
+    const pw = document.getElementById("masterPasswordInput").value.trim();
+    const errorElement = document.getElementById("unlockError");
+
+    errorElement.classList.add('hidden');
+
+    if (!pw) {
+        const message = WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked ?
+            'Please create your master password' :
+            'Please enter your master password';
+        WalletApp.showToast(message, 'error');
+        return;
+    }
+
+    if (WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked) {
+        const strengthCheck = WalletApp.Crypto.validatePasswordStrength(pw);
+        if (!strengthCheck.isStrong) {
+            WalletApp.showToast('Master password is too weak. Please choose a stronger password.', 'error');
+            return;
+        }
+    }
+
+    WalletApp.setButtonLoading('unlockBtn', true);
+
+    try {
+        if (WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked) {
+            await WalletApp.Vault.keyStorage.set(pw);
+            WalletApp.Vault.hideMasterPasswordModal();
+            WalletApp.showToast('Welcome! Your secure vault has been created.');
+        } else {
+            await WalletApp.Vault.unlockVault(pw);
+        }
+
+        if (window.pendingAction) {
+            const action = window.pendingAction;
+            window.pendingAction = null;
+            setTimeout(action, 100);
+        }
+    } catch (error) {
+        console.error('Master password submission failed:', error);
+        const message = WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked ?
+            'Failed to create vault. Please try again.' :
+            'An error occurred. Please try again.';
+        WalletApp.showToast(message, 'error');
+    } finally {
+        WalletApp.setButtonLoading('unlockBtn', false);
+        document.getElementById("masterPasswordInput").value = '';
+    }
+};
+
+WalletApp.Vault.unlockVault = async (password) => {
+    const rows = document.querySelectorAll("tbody tr");
+    let decryptionSuccessful = false;
+
+    for (let row of rows) {
+        const td = row.children[1];
+        const encrypted = WalletApp.Crypto.base64ToArrayBuffer(td.getAttribute("data-encrypted"));
+        const iv = WalletApp.Crypto.base64ToArrayBuffer(td.getAttribute("data-iv"));
+        const salt = WalletApp.Crypto.base64ToArrayBuffer(td.getAttribute("data-salt"));
+
+        try {
+            const decryptedPassword = await WalletApp.Crypto.decryptPassword(encrypted, iv, salt, password);
+            td.querySelector("input").value = decryptedPassword;
+            decryptionSuccessful = true;
+        } catch (error) {
+            console.error('Decryption failed for entry:', error);
+            document.getElementById("unlockError").classList.remove('hidden');
+            return;
+        }
+    }
+
+    if (decryptionSuccessful || rows.length === 0) {
+        await WalletApp.Vault.keyStorage.set(password);
+        WalletApp.Vault.hideMasterPasswordModal();
+        WalletApp.showToast(`Vault unlocked! Found ${rows.length} password${rows.length !== 1 ? 's' : ''}.`);
+    }
+};
+
+WalletApp.Vault.requireMasterPassword = (callback) => {
+    if (!WalletApp.Vault.keyStorage.isAvailable()) {
+        WalletApp.Vault.showMasterPasswordModal();
+        window.pendingAction = callback;
+        return false;
+    }
+    WalletApp.Vault.keyStorage.extendTimeout();
+    return true;
+};
+
+WalletApp.Vault.generatePassword = () => {
+    try {
+        const options = {
+            length: Math.max(12, Math.min(128, parseInt(document.getElementById("passwordLength")?.value) || 16)),
+            includeUpper: document.getElementById("includeUpper")?.checked ?? true,
+            includeLower: document.getElementById("includeLower")?.checked ?? true,
+            includeNumbers: document.getElementById("includeNumbers")?.checked ?? true,
+            includeSymbols: document.getElementById("includeSymbols")?.checked ?? true
+        };
+
+        const password = WalletApp.Crypto.generatePassword(options);
+        const input = document.getElementById("generatedPasswordInput");
+        if (input) {
+            input.value = password;
+            WalletApp.showToast('Password generated successfully!');
+        }
+    } catch (error) {
+        WalletApp.showToast(error.message, 'error');
+    }
+};
+
+WalletApp.Vault.toggleVisibility = (id, toggleBtn) => {
+    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.toggleVisibility(id, toggleBtn))) return;
+
+    const input = document.getElementById(id);
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    toggleBtn.innerHTML = isPassword ? "🙈 Hide" : "👁️ Show";
+};
+
+WalletApp.Vault.copyToClipboard = async (id) => {
+    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.copyToClipboard(id))) return;
+
+    const input = document.getElementById(id);
+    const originalType = input.type;
+
+    if (!input.value) {
+        WalletApp.showToast('No password to copy', 'error');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(input.value);
+        WalletApp.showToast('Password copied to clipboard!');
+    } catch (error) {
+        if (originalType === 'password') input.type = 'text';
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+
+        try {
+            document.execCommand('copy');
+            WalletApp.showToast('Password copied to clipboard!');
+        } catch (fallbackError) {
+            WalletApp.showToast('Failed to copy password', 'error');
+        }
+
+        if (originalType === 'password') input.type = 'password';
+    }
+};
+
+WalletApp.Vault.openEditModal = (id, inputId, name) => {
+    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.openEditModal(id, inputId, name))) return;
+
+    WalletApp.Vault.currentEditId = id;
+    WalletApp.Vault.currentEditName = name;
+    document.getElementById("editLabel").textContent = `Editing password for "${name}"`;
+    document.getElementById("editPasswordInput").value = "";
+    document.getElementById("editModal").classList.remove('hidden');
+};
+
+WalletApp.Vault.closeEditModal = () => {
+    document.getElementById("editModal").classList.add('hidden');
+    WalletApp.Vault.currentEditId = null;
+    WalletApp.Vault.currentEditName = null;
+};
+
+WalletApp.Vault.handleEditSubmit = async () => {
+    const newPassword = document.getElementById("editPasswordInput").value;
+
+    if (!newPassword.trim()) {
+        WalletApp.showToast('Password cannot be empty', 'error');
+        return;
+    }
+
+    const strengthCheck = WalletApp.Crypto.validatePasswordStrength(newPassword);
+    if (!strengthCheck.isStrong) {
+        WalletApp.showToast('Password is too weak. Please choose a stronger password.', 'error');
+        return;
+    }
+
+    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.handleEditSubmit())) return;
+
+    WalletApp.setButtonLoading('editBtn', true);
+
+    try {
+        const { encrypted, iv, salt } = await WalletApp.Crypto.encryptPassword(newPassword, WalletApp.Vault.keyStorage);
+
+        const payload = new URLSearchParams();
+        payload.append("id", WalletApp.Vault.currentEditId);
+        payload.append("encrypted", WalletApp.Crypto.arrayBufferToBase64(encrypted));
+        payload.append("iv", WalletApp.Crypto.arrayBufferToBase64(iv));
+        payload.append("salt", WalletApp.Crypto.arrayBufferToBase64(salt));
+
+        const response = await fetch("/edit", {
+            method: "POST",
+            body: payload
+        });
+
+        if (response.ok) {
+            WalletApp.showToast(`Password for "${WalletApp.Vault.currentEditName}" updated successfully!`);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            throw new Error('Server error');
+        }
+    } catch (error) {
+        console.error('Edit failed:', error);
+        WalletApp.showToast('Failed to update password. Please try again.', 'error');
+    } finally {
+        WalletApp.setButtonLoading('editBtn', false);
+    }
+};
+
+WalletApp.Vault.handleGenerateSubmit = async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("nameInput").value.trim();
+    const plaintext = document.getElementById("generatedPasswordInput").value;
+
+    if (!name) {
+        WalletApp.showToast('Please enter a service name', 'error');
+        return;
+    }
+
+    if (!plaintext) {
+        WalletApp.showToast('Please generate a password first', 'error');
+        return;
+    }
+
+    const strengthCheck = WalletApp.Crypto.validatePasswordStrength(plaintext);
+    if (!strengthCheck.isStrong) {
+        WalletApp.showToast('Generated password is too weak. Please generate a stronger one.', 'error');
+        return;
+    }
+
+    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.handleGenerateSubmit(e))) return;
+
+    WalletApp.setButtonLoading('saveBtn', true);
+
+    try {
+        const { encrypted, iv, salt } = await WalletApp.Crypto.encryptPassword(plaintext, WalletApp.Vault.keyStorage);
+
+        const payload = new URLSearchParams();
+        payload.append("name", name);
+        payload.append("encrypted", WalletApp.Crypto.arrayBufferToBase64(encrypted));
+        payload.append("iv", WalletApp.Crypto.arrayBufferToBase64(iv));
+        payload.append("salt", WalletApp.Crypto.arrayBufferToBase64(salt));
+
+        const response = await fetch("/generate", {
+            method: "POST",
+            body: payload
+        });
+
+        if (response.ok) {
+            WalletApp.showToast(`Password for "${name}" saved successfully!`);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            throw new Error('Server error');
+        }
+    } catch (error) {
+        console.error('Save failed:', error);
+        WalletApp.showToast('Failed to save password. Please try again.', 'error');
+    } finally {
+        WalletApp.setButtonLoading('saveBtn', false);
+    }
+};
+
+WalletApp.Vault.initEventListeners = () => {
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const name = btn.getAttribute('data-name');
+            const inputId = btn.getAttribute('data-input-id');
+            WalletApp.Vault.openEditModal(id, inputId, name);
+        });
+    });
+
+    document.getElementById("confirmEditBtn")?.addEventListener("click", WalletApp.Vault.handleEditSubmit);
+    document.getElementById("generateForm")?.addEventListener("submit", WalletApp.Vault.handleGenerateSubmit);
+
+    document.getElementById("masterPasswordInput")?.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            WalletApp.Vault.submitMasterPassword();
+        }
+    });
+
+    document.getElementById("editPasswordInput")?.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            WalletApp.Vault.handleEditSubmit();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (WalletApp.Vault.keyStorage) {
+            WalletApp.Vault.keyStorage.extendTimeout();
+        }
+
+        if (e.target.classList.contains('modal-overlay')) {
+            if (e.target.id === 'editModal') {
+                WalletApp.Vault.closeEditModal();
+            }
+        }
+    });
+
+    ['keypress', 'scroll', 'mousemove'].forEach(event => {
+        document.addEventListener(event, () => {
+            if (WalletApp.Vault.keyStorage) {
+                WalletApp.Vault.keyStorage.extendTimeout();
+            }
+        });
+    });
+};
+
+window.submitMasterPassword = () => WalletApp.Vault.submitMasterPassword();
+window.generatePassword = () => WalletApp.Vault.generatePassword();
+window.toggleVisibility = (id, btn) => WalletApp.Vault.toggleVisibility(id, btn);
+window.copyToClipboard = (id) => WalletApp.Vault.copyToClipboard(id);
+window.closeEditModal = () => WalletApp.Vault.closeEditModal();
+
+document.addEventListener('DOMContentLoaded', () => {
+    WalletApp.Vault.init();
+});

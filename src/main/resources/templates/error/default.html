@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Something Went Wrong - Wallet</title>
-    <div th:replace="~{fragments/favicon :: favicons}"></div>
-    <link rel="stylesheet" href="/css/style.css">
+    <div th:replace="~{shared/favicon :: favicons}"></div>
+    <link rel="stylesheet" href="/css/main.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,17 +20,14 @@
         </p>
     </div>
 
-    <!-- Error Message Display -->
     <div th:if="${error}" class="error-message" th:text="${error}">
         An unexpected error occurred. Please try again.
     </div>
 
-    <!-- Default Error Message if none provided -->
     <div th:unless="${error}" class="error-message">
         An unexpected error occurred while processing your request. Please try again.
     </div>
 
-    <!-- Action Buttons -->
     <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 30px;">
         <button onclick="goBack()" class="btn btn-primary">
             🔙 Go Back
@@ -40,12 +37,11 @@
             🏠 Return to Login
         </a>
 
-        <a href="/dashboard" class="btn btn-outline">
+        <a href="/vault/dashboard" class="btn btn-outline">
             📊 Go to Dashboard
         </a>
     </div>
 
-    <!-- Helpful Information -->
     <div style="background: rgba(255, 255, 255, 0.5); padding: 25px; border-radius: var(--border-radius-lg); margin-top: 30px; border: 1px solid rgba(255, 255, 255, 0.3);">
         <h3 style="color: var(--info-color); margin-bottom: 15px;">💡 What you can try:</h3>
         <ul style="color: var(--text-primary); line-height: 1.8; margin: 0; padding-left: 20px;">
@@ -56,7 +52,6 @@
         </ul>
     </div>
 
-    <!-- Support Information -->
     <div style="background: rgba(255, 255, 255, 0.5); padding: 25px; border-radius: var(--border-radius-lg); margin-top: 20px; border: 1px solid rgba(255, 255, 255, 0.3);">
         <h3 style="color: var(--primary-color); margin-bottom: 15px;">🆘 Still having trouble?</h3>
         <p style="color: var(--text-primary); line-height: 1.8; margin: 0;">
@@ -71,33 +66,28 @@
         </div>
     </div>
 
-    <div th:replace="~{fragments/footer :: footer}"></div>
+    <div th:replace="~{shared/footer :: footer}"></div>
 </div>
 
+<script src="/js/main.js"></script>
 <script>
     function goBack() {
-        // Check if there's history to go back to
         if (window.history.length > 1) {
             window.history.back();
         } else {
-            // If no history, go to home page
             window.location.href = '/';
         }
     }
 
-    // Optional: Add some interactivity
     document.addEventListener('DOMContentLoaded', function() {
-        // Add a subtle animation to the error emoji
         const errorEmoji = document.querySelector('div[style*="font-size: 4rem"]');
         if (errorEmoji) {
             errorEmoji.style.animation = 'wobble 2s ease-in-out infinite';
         }
 
-        // Log error for debugging (only in development)
         console.log('Error page loaded. If you see this repeatedly, please refresh or try again later.');
     });
 
-    // Add CSS animation for the emoji
     const style = document.createElement('style');
     style.textContent = `
         @keyframes wobble {

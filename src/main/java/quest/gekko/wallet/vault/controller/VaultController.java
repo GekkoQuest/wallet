@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class VaultController {
-    private static final String DASHBOARD_VIEW = "dashboard";
+    private static final String DASHBOARD_VIEW = "vault/dashboard";
     private static final String LOGIN_REDIRECT = "redirect:/";
     private static final String DASHBOARD_REDIRECT = "redirect:/dashboard";
 
@@ -270,7 +270,7 @@ public class VaultController {
             securityAuditService.logPasswordAccess(email, clientIp, "Analytics page accessed");
 
             sessionManagementService.updateSessionActivity(session);
-            return "vault-analytics";
+            return "vault/analytics";
         } catch (final Exception e) {
             log.error("Error loading vault analytics for user: {}", SecurityUtil.maskEmail(email), e);
             model.addAttribute("error", "Unable to load vault analytics");

@@ -8,12 +8,12 @@ public class InfoController {
 
     @GetMapping("/terms")
     public String termsPage() {
-        return "terms";
+        return "legal/privacy";
     }
 
     @GetMapping("/privacy")
     public String privacyPage() {
-        return "privacy";
+        return "legal/terms";
     }
 
 }

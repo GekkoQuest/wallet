@@ -26,8 +26,8 @@ import quest.gekko.wallet.security.util.SecurityUtil;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthenticationController {
-    private static final String LOGIN_VIEW = "login";
-    private static final String VERIFY_VIEW = "verify";
+    private static final String LOGIN_VIEW = "auth/login";
+    private static final String VERIFY_VIEW = "auth/verify";
     private static final String DASHBOARD_REDIRECT = "redirect:/dashboard";
     private static final String LOGIN_REDIRECT = "redirect:/";
 

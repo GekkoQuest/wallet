@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Vault - Wallet</title>
+    <div th:replace="~{shared/favicon :: favicons}"></div>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container dashboard-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h2 style="margin: 0;">🔐 Password Vault</h2>
+        <a href="/vault/analytics" class="btn btn-outline">📊 Vault Analytics</a>
+    </div>
+
+    <div id="masterPasswordModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2 id="modalTitle">🔑 Unlock Your Vault</h2>
+            <div class="form-group">
+                <label class="form-label" for="masterPasswordInput">Master Password</label>
+                <input type="password" id="masterPasswordInput" placeholder="Enter your master password" />
+            </div>
+            <button class="btn btn-primary" onclick="submitMasterPassword()">
+                <span id="unlockBtnText">Unlock Vault</span>
+                <span id="unlockBtnLoader" class="loading hidden"></span>
+            </button>
+            <div id="unlockError" class="error-message hidden">
+                Incorrect master password. Please try again.
+            </div>
+            <div class="modal-disclaimer">
+                🔒 Your master password is never sent to our servers. All encryption happens locally in your browser.
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2>✏️ Edit Password</h2>
+            <div class="form-group">
+                <label class="form-label" id="editLabel">Password Entry</label>
+                <input type="password" id="editPasswordInput" placeholder="Enter new password" />
+            </div>
+            <button class="btn btn-success" id="confirmEditBtn">
+                <span id="editBtnText">Update Password</span>
+                <span id="editBtnLoader" class="loading hidden"></span>
+            </button>
+            <button class="btn btn-outline" onclick="closeEditModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="password-generator">
+        <h3>🎲 Generate New Password</h3>
+        <form id="generateForm">
+            <div class="generator-controls">
+                <div class="form-group">
+                    <label class="form-label" for="nameInput">Service Name</label>
+                    <input type="text" id="nameInput" placeholder="e.g., Gmail, Netflix, GitHub" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="generatedPasswordInput">Generated Password</label>
+                    <input type="text" id="generatedPasswordInput" placeholder="Click Generate to create password" readonly required />
+                </div>
+            </div>
+
+            <div class="checkbox-group">
+                <label class="checkbox-item">
+                    <input type="checkbox" id="includeUpper" checked />
+                    <span>Uppercase (A-Z)</span>
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" id="includeLower" checked />
+                    <span>Lowercase (a-z)</span>
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" id="includeNumbers" checked />
+                    <span>Numbers (0-9)</span>
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" id="includeSymbols" checked />
+                    <span>Symbols (!@#$)</span>
+                </label>
+                <div class="length-control">
+                    <span>Length:</span>
+                    <input type="number" id="passwordLength" min="12" max="128" value="16" />
+                </div>
+            </div>
+
+            <div class="generator-controls">
+                <button type="button" class="btn btn-secondary" onclick="generatePassword()">
+                    🎲 Generate Password
+                </button>
+                <button type="submit" class="btn btn-success">
+                    <span id="saveBtnText">💾 Save Password</span>
+                    <span id="saveBtnLoader" class="loading hidden"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-container">
+        <h3>📋 Saved Passwords</h3>
+        <div th:if="${#lists.isEmpty(passwords)}" class="text-center" style="padding: 40px;">
+            <div style="font-size: 3rem; margin-bottom: 20px;">🔒</div>
+            <p style="color: var(--text-secondary); font-size: 1.1rem;">No passwords saved yet.</p>
+            <p style="color: var(--text-secondary);">Generate your first password above to get started!</p>
+        </div>
+        <table th:if="${!#lists.isEmpty(passwords)}">
+            <thead>
+            <tr>
+                <th>🏷️ Service</th>
+                <th>🔑 Password</th>
+                <th>📋 Copy</th>
+                <th>👁️ Show</th>
+                <th>✏️ Edit</th>
+                <th>🗑️ Delete</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="entry, iterStat : ${passwords}">
+                <td>
+                    <strong th:text="${entry.name}">Service Name</strong>
+                </td>
+                <td th:attr="data-encrypted=${entry.encrypted},data-iv=${entry.iv},data-salt=${entry.salt}">
+                    <input type="password"
+                           th:id="'pw' + ${iterStat.index}"
+                           class="password-input"
+                           readonly
+                           placeholder="••••••••••••" />
+                </td>
+                <td>
+                    <div class="table-actions">
+                        <button type="button"
+                                class="btn btn-outline"
+                                th:onclick="|copyToClipboard('pw${iterStat.index}')|">
+                            📋 Copy
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <div class="table-actions">
+                        <button type="button"
+                                class="btn btn-outline"
+                                th:onclick="|toggleVisibility('pw${iterStat.index}', this)|">
+                            👁️ Show
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <div class="table-actions">
+                        <button type="button"
+                                class="btn btn-secondary edit-btn"
+                                th:attr="data-id=${entry.id}, data-name=${entry.name}, data-input-id='pw' + ${iterStat.index}">
+                            ✏️ Edit
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <div class="table-actions">
+                        <form th:action="@{/delete}" method="post" style="display:inline;">
+                            <input type="hidden" name="id" th:value="${entry.id}" />
+                            <button type="submit"
+                                    class="btn btn-danger"
+                                    onclick="return confirm('⚠️ Are you sure you want to delete this password? This action cannot be undone.')">
+                                🗑️ Delete
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-center">
+        <a href="/logout" class="logout-link">🚪 Logout</a>
+    </div>
+
+    <div th:replace="~{shared/footer :: footer}"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/main.js"></script>
+<script src="/js/crypto.js"></script>
+<script src="/js/vault.js"></script>
+</body>
+</html>

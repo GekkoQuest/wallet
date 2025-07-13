@@ -551,6 +551,7 @@ tbody tr:last-child td {
     background: linear-gradient(135deg, var(--info-color), #2563eb);
 }
 
+
 .password-strength {
     margin-top: 10px;
     padding: 10px;
