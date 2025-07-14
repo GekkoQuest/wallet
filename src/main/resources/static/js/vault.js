@@ -46,48 +46,46 @@ WalletApp.Vault.checkVaultStatus = () => {
         isFirstTimeVault: WalletApp.Vault.isFirstTimeVault
     });
 
-    if (rows.length === 0) {
-        console.log('No passwords found - this is potentially a first-time vault. Clearing any previous session data.');
+    if (rows.length > 0) {
+        const firstPasswordInput = rows[0].children[1].querySelector('input');
 
-        try {
-            sessionStorage.removeItem('vaultUnlocked');
-            sessionStorage.removeItem('vaultUnlockedTime');
-            console.log('Session storage forcibly cleared');
-        } catch (e) {
-            console.warn('Could not clear session storage:', e);
+        if (firstPasswordInput.value && firstPasswordInput.value !== '••••••••••••') {
+            WalletApp.Vault.keyStorage.vaultUnlocked = true;
+
+            try {
+                sessionStorage.setItem('vaultUnlocked', 'true');
+                sessionStorage.setItem('vaultUnlockedTime', Date.now().toString());
+            } catch (e) {
+                console.warn('SessionStorage not available, using memory only');
+            }
+            console.log('Passwords already decrypted, vault is ready');
+            return;
         }
 
-        WalletApp.Vault.keyStorage.clear();
-        console.log('Key storage forcibly cleared');
-
-        const keyAvailable = WalletApp.Vault.keyStorage.isAvailable();
-        console.log('After clearing - key available:', keyAvailable);
-
-        if (!keyAvailable) {
-            console.log('Master password not available, showing modal for first-time setup');
-            WalletApp.Vault.showMasterPasswordModal();
-        } else {
-            console.error('ERROR: Key still available after clearing! This should not happen.');
-            WalletApp.Vault.showMasterPasswordModal();
-        }
+        console.log('Existing passwords found but encrypted, prompting for master password unlock');
+        WalletApp.Vault.showMasterPasswordModal();
         return;
     }
 
-    const firstPasswordInput = rows[0].children[1].querySelector('input');
+    const keyAvailable = WalletApp.Vault.keyStorage.isAvailable();
+    console.log('No passwords found. Checking master password availability:', keyAvailable);
 
-    if (firstPasswordInput.value && firstPasswordInput.value !== '••••••••••••') {
-        WalletApp.Vault.keyStorage.vaultUnlocked = true;
-
-        try {
-            sessionStorage.setItem('vaultUnlocked', 'true');
-            sessionStorage.setItem('vaultUnlockedTime', Date.now().toString());
-        } catch (e) {
-            console.warn('SessionStorage not available, using memory only');
-        }
+    if (keyAvailable) {
+        console.log('Master password available but vault is empty - ready to save passwords');
         return;
     }
 
-    console.log('Existing passwords found but encrypted, prompting for unlock');
+    console.log('No passwords and no master password - showing first-time setup modal');
+
+    try {
+        sessionStorage.removeItem('vaultUnlocked');
+        sessionStorage.removeItem('vaultUnlockedTime');
+        console.log('Cleared any stale session data');
+    } catch (e) {
+        console.warn('Could not clear session storage:', e);
+    }
+
+    WalletApp.Vault.keyStorage.clear();
     WalletApp.Vault.showMasterPasswordModal();
 };
 
