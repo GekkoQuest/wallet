@@ -97,17 +97,18 @@ public class VaultController {
         try {
             vaultService.savePassword(
                     email,
-                    request.getName().trim(),
+                    request.getServiceName().trim(),
+                    request.getUsername() != null ? request.getUsername().trim() : null,
                     request.getEncrypted(),
                     request.getIv(),
                     request.getSalt()
             );
 
-            securityAuditService.logPasswordAccess(email, clientIp, "Password saved: " + request.getName().trim());
+            securityAuditService.logPasswordAccess(email, clientIp, "Password saved: " + request.getServiceName().trim());
             redirectAttributes.addFlashAttribute("success", "Password saved successfully");
 
-            log.info("Password saved successfully for user: {} with name: {}",
-                    SecurityUtil.maskEmail(email), request.getName().trim());
+            log.info("Password saved successfully for user: {} with service: {}",
+                    SecurityUtil.maskEmail(email), request.getServiceName().trim());
 
             sessionManagementService.updateSessionActivity(session);
             return DASHBOARD_REDIRECT;
@@ -142,6 +143,7 @@ public class VaultController {
         try {
             vaultService.editPassword(
                     request.getId(),
+                    request.getUsername() != null ? request.getUsername().trim() : null,
                     request.getEncrypted(),
                     request.getIv(),
                     request.getSalt(),
@@ -340,6 +342,25 @@ public class VaultController {
             log.error("Error searching passwords for user: {}", SecurityUtil.maskEmail(email), e);
             model.addAttribute("error", "Unable to search password vault");
             return DASHBOARD_VIEW;
+        }
+    }
+
+    @PostMapping("/vault/unlock-failed")
+    @ResponseBody
+    public void recordFailedUnlock(final HttpSession session, final HttpServletRequest request) {
+        final String email = sessionManagementService.getUserEmail(session);
+        if (email != null) {
+            final String clientIp = SecurityUtil.getClientIpAddress(request);
+            vaultService.recordFailedUnlockAttempt(email, clientIp);
+        }
+    }
+
+    @PostMapping("/vault/unlock-success")
+    @ResponseBody
+    public void recordSuccessfulUnlock(final HttpSession session) {
+        final String email = sessionManagementService.getUserEmail(session);
+        if (email != null) {
+            vaultService.recordSuccessfulUnlock(email);
         }
     }
 }

@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 @Builder
 public class PasswordEntryResponse {
     private String id;
-    private String name;
+    private String serviceName;
+    private String username;
     private String encrypted;
     private String iv;
     private String salt;
@@ -24,7 +25,8 @@ public class PasswordEntryResponse {
     public static PasswordEntryResponse fromEntity(final PasswordEntry entity) {
         return PasswordEntryResponse.builder()
                 .id(entity.getId())
-                .name(entity.getName())
+                .serviceName(entity.getServiceName())
+                .username(entity.getUsername())
                 .encrypted(entity.getEncrypted())
                 .iv(entity.getIv())
                 .salt(entity.getSalt())

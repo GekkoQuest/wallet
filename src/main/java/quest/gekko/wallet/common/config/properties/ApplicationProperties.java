@@ -13,7 +13,7 @@ public class ApplicationProperties {
     private Security security = new Security();
     private Vault vault = new Vault();
     private Email email = new Email();
-    private Cloudflare cloudflare = new Cloudflare(); // NEW: Added Cloudflare config
+    private Cloudflare cloudflare = new Cloudflare();
 
     @Data
     public static class Support {
@@ -46,6 +46,7 @@ public class ApplicationProperties {
         private FailedAttempts failedAttempts = new FailedAttempts();
         private AccountLock accountLock = new AccountLock();
         private Cors cors = new Cors();
+        private Alerts alerts = new Alerts();
 
         @Data
         public static class RateLimit {
@@ -79,6 +80,8 @@ public class ApplicationProperties {
         @Data
         public static class FailedAttempts {
             private int max = 5;
+            private int maxVerificationAttempts = 5;
+            private int maxUnlockAttempts = 5;
         }
 
         @Data
@@ -93,18 +96,43 @@ public class ApplicationProperties {
             private String allowedHeaders = "*";
             private boolean allowCredentials = true;
         }
+
+        @Data
+        public static class Alerts {
+            private boolean enabled = true;
+            private boolean sendOnFailedLogin = true;
+            private boolean sendOnNewIpLogin = true;
+            private boolean sendOnRateLimit = true;
+            private boolean sendOnVaultBreach = true;
+            private boolean sendOnAccountCreation = true;
+            private boolean sendOnMultipleFailedUnlocks = true;
+            private int failedAttemptsThreshold = 3;
+            private int rateLimitThreshold = 5;
+            private int unlockAttemptsThreshold = 5;
+        }
     }
 
     @Data
     public static class Vault {
         private int maxPasswordsPerUser = 1000;
         private int maxPasswordNameLength = 100;
+        private int maxUsernameLength = 200;
+        private Security security = new Security();
+
+        @Data
+        public static class Security {
+            private int maxFailedUnlockAttempts = 5;
+            private int unlockAttemptWindowMinutes = 15;
+            private boolean alertOnUnauthorizedAccess = true;
+            private boolean alertOnVaultLimitReached = true;
+        }
     }
 
     @Data
     public static class Email {
         private Verification verification = new Verification();
         private boolean securityAlertsEnabled = true;
+        private SecurityAlerts securityAlerts = new SecurityAlerts();
 
         @Data
         public static class Verification {
@@ -115,9 +143,25 @@ public class ApplicationProperties {
                 private boolean enabled = true;
             }
         }
+
+        @Data
+        public static class SecurityAlerts {
+            private boolean enabled = true;
+            private boolean includeIpAddress = true;
+            private boolean includeUserAgent = false;
+            private boolean includeTimestamp = true;
+            private String fromName = "Security Team";
+            private Templates templates = new Templates();
+
+            @Data
+            public static class Templates {
+                private boolean useHtmlTemplates = true;
+                private boolean includeActionableAdvice = true;
+                private boolean includeSupportContact = true;
+            }
+        }
     }
 
-    // NEW: Cloudflare configuration section
     @Data
     public static class Cloudflare {
         private boolean enabled = true;

@@ -131,7 +131,13 @@ WalletApp.Crypto.SecureKeyStorage = class {
     }
 
     isAvailable() {
+        console.log('Checking key availability:', {
+            derivedKey: this.derivedKey !== null,
+            vaultUnlocked: this.vaultUnlocked
+        });
+
         if (this.derivedKey !== null && this.vaultUnlocked) {
+            console.log('Key available: in-memory key exists');
             return true;
         }
 
@@ -142,15 +148,25 @@ WalletApp.Crypto.SecureKeyStorage = class {
             const timeElapsed = now - unlockedTime;
             const maxAge = this.KEY_TIMEOUT_MINUTES * 60 * 1000;
 
+            console.log('Session storage check:', {
+                wasUnlocked,
+                unlockedTime,
+                timeElapsed,
+                maxAge,
+                isValid: wasUnlocked === 'true' && timeElapsed < maxAge
+            });
+
             if (wasUnlocked === 'true' && timeElapsed < maxAge) {
+                console.log('Key available: valid session found');
                 this.vaultUnlocked = true;
                 this.lastActivityTime = now;
                 return true;
             }
         } catch (e) {
-            // SessionStorage not available, fall back to memory only
+            console.warn('SessionStorage not available, fall back to memory only');
         }
 
+        console.log('Key not available');
         return false;
     }
 

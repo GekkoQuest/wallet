@@ -9,6 +9,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .username-display {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 2px;
+        }
+    </style>
 </head>
 <body>
 <div class="container dashboard-container">
@@ -75,12 +83,12 @@
         <h3 class="colored-heading" style="color: var(--primary-color); margin-bottom: 20px; text-align: center;">🔍 Search Your Vault</h3>
         <form action="/vault/analytics" method="get" style="display: flex; flex-direction: column; gap: 15px; align-items: center; justify-content: center;">
             <div style="width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 8px;">
-                <label class="form-label" for="searchInput" style="text-align: center;">Search by Service Name</label>
+                <label class="form-label" for="searchInput" style="text-align: center;">Search by Service Name or Username</label>
                 <input type="text"
                        id="searchInput"
                        name="query"
                        th:value="${searchQuery}"
-                       placeholder="e.g., Gmail, GitHub, Netflix..."
+                       placeholder="e.g., Gmail, GitHub, username..."
                        style="width: 100%; text-align: center;" />
             </div>
             <div style="display: flex; gap: 10px;">
@@ -105,7 +113,12 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
             <div th:each="entry : ${recentlyAccessed}"
                  style="background: rgba(255, 255, 255, 0.8); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 15px;">
-                <div style="font-weight: 600; margin-bottom: 5px;" th:text="${entry.name}">Service Name</div>
+                <div style="font-weight: 600; margin-bottom: 5px;" th:text="${entry.serviceName}">Service Name</div>
+                <div th:if="${entry.username != null and !#strings.isEmpty(entry.username)}"
+                     class="username-display"
+                     th:text="'👤 ' + ${entry.username}">
+                    👤 username@example.com
+                </div>
                 <div style="font-size: 0.875rem; color: var(--text-secondary);">
                     Accessed <span th:text="${entry.accessCount}">0</span> times
                 </div>
@@ -145,7 +158,7 @@
         <table th:if="${(searchQuery != null and !searchQuery.trim().isEmpty()) ? !#lists.isEmpty(searchResults) : !#lists.isEmpty(passwords)}">
             <thead>
             <tr>
-                <th>🏷️ Service</th>
+                <th>🏷️ Service & User</th>
                 <th>📅 Created</th>
                 <th>🔄 Last Modified</th>
                 <th>👀 Access Count</th>
@@ -155,7 +168,14 @@
             <tbody>
             <tr th:each="entry : ${(searchQuery != null and !searchQuery.trim().isEmpty()) ? searchResults : passwords}">
                 <td>
-                    <strong th:text="${entry.name}">Service Name</strong>
+                    <div>
+                        <strong th:text="${entry.serviceName}">Service Name</strong>
+                        <div th:if="${entry.username != null and !#strings.isEmpty(entry.username)}"
+                             class="username-display"
+                             th:text="'👤 ' + ${entry.username}">
+                            👤 username@example.com
+                        </div>
+                    </div>
                 </td>
                 <td th:text="${#temporals.format(entry.createdAt, 'MMM dd, yyyy')}">Dec 25, 2024</td>
                 <td th:text="${entry.lastModifiedAt != null ? #temporals.format(entry.lastModifiedAt, 'MMM dd, yyyy') : 'Never'}">Never</td>

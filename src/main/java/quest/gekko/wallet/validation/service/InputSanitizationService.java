@@ -11,7 +11,8 @@ import java.util.regex.Pattern;
 public class InputSanitizationService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     private static final Pattern VERIFICATION_CODE_PATTERN = Pattern.compile("^[0-9]{6}$");
-    private static final Pattern PASSWORD_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9\\s\\-_\\.]{1,100}$");
+    private static final Pattern SERVICE_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9\\s\\-_\\.]{1,100}$");
+    private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9\\s\\-_\\.@]{1,200}$");
     private static final Pattern BASE64_PATTERN = Pattern.compile("^[A-Za-z0-9+/]*={0,2}$");
 
     // Characters that could be used for XSS or injection attacks
@@ -44,7 +45,18 @@ public class InputSanitizationService {
         final String trimmed = name.trim();
         return !trimmed.isEmpty() &&
                 trimmed.length() <= 100 &&
-                PASSWORD_NAME_PATTERN.matcher(trimmed).matches() &&
+                SERVICE_NAME_PATTERN.matcher(trimmed).matches() &&
+                !containsDangerousCharacters(trimmed);
+    }
+
+    public boolean isValidUsername(final String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return true; // Username is optional
+        }
+
+        final String trimmed = username.trim();
+        return trimmed.length() <= 200 &&
+                USERNAME_PATTERN.matcher(trimmed).matches() &&
                 !containsDangerousCharacters(trimmed);
     }
 
@@ -88,7 +100,32 @@ public class InputSanitizationService {
         sanitized = sanitized.trim();
 
         if (sanitized.isEmpty() || sanitized.length() > 100) {
-            log.warn("Password name failed validation after sanitization");
+            log.warn("Service name failed validation after sanitization");
+            return null;
+        }
+
+        return sanitized;
+    }
+
+    public String sanitizeUsername(final String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return null; // Return null for empty usernames (they're optional)
+        }
+
+        String sanitized = username.trim();
+
+        // Remove dangerous characters
+        sanitized = DANGEROUS_CHARS.matcher(sanitized).replaceAll("");
+
+        // Trim again after character removal
+        sanitized = sanitized.trim();
+
+        if (sanitized.isEmpty()) {
+            return null; // Return null if empty after sanitization
+        }
+
+        if (sanitized.length() > 200) {
+            log.warn("Username too long after sanitization: {} characters", sanitized.length());
             return null;
         }
 
@@ -162,7 +199,17 @@ public class InputSanitizationService {
         return name != null &&
                 isWithinLengthLimits(name, 1, 100) &&
                 !containsDangerousCharacters(name) &&
-                PASSWORD_NAME_PATTERN.matcher(name.trim()).matches();
+                SERVICE_NAME_PATTERN.matcher(name.trim()).matches();
+    }
+
+    public boolean isUsernameValid(final String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return true; // Username is optional
+        }
+
+        return isWithinLengthLimits(username, 1, 200) &&
+                !containsDangerousCharacters(username) &&
+                USERNAME_PATTERN.matcher(username.trim()).matches();
     }
 
     private String maskEmail(final String email) {

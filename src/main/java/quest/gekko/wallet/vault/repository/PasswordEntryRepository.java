@@ -21,8 +21,11 @@ public interface PasswordEntryRepository extends MongoRepository<PasswordEntry, 
     @Query("{ 'email': ?0, 'lastAccessedAt': { $gte: ?1 } }")
     List<PasswordEntry> findRecentlyAccessedByEmail(String email, LocalDateTime since);
 
-    @Query("{ 'email': ?0, 'name': { $regex: ?1, $options: 'i' } }")
-    List<PasswordEntry> findByEmailAndNameContainingIgnoreCase(String email, String namePattern);
+    @Query("{ 'email': ?0, $or: [" +
+            "{ 'serviceName': { $regex: ?1, $options: 'i' } }, " +
+            "{ 'username': { $regex: ?1, $options: 'i' } }" +
+            "] }")
+    List<PasswordEntry> findByEmailAndServiceNameOrUsernameContainingIgnoreCase(String email, String searchPattern);
 
     void deleteByEmailAndId(String email, String id);
 }

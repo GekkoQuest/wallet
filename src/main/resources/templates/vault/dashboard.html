@@ -57,6 +57,13 @@
             position: relative;
             overflow: visible;
         }
+
+        .username-display {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -104,6 +111,7 @@
             <h2>✏️ Edit Password</h2>
             <div class="form-group">
                 <label class="form-label" id="editLabel">Password Entry</label>
+                <input type="text" id="editUsernameInput" placeholder="Username (optional)" style="margin-bottom: 10px;" />
                 <input type="password" id="editPasswordInput" placeholder="Enter new password" />
             </div>
             <button class="btn btn-success" id="confirmEditBtn">
@@ -119,8 +127,12 @@
         <form id="generateForm">
             <div class="generator-controls">
                 <div class="form-group">
-                    <label class="form-label" for="nameInput">Service Name</label>
-                    <input type="text" id="nameInput" placeholder="e.g., Gmail, Netflix, GitHub" required />
+                    <label class="form-label" for="serviceNameInput">Service Name</label>
+                    <input type="text" id="serviceNameInput" placeholder="e.g., Gmail, Netflix, GitHub" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="usernameInput">Username</label>
+                    <input type="text" id="usernameInput" placeholder="Username (optional)" />
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="generatedPasswordInput">Generated Password</label>
@@ -173,7 +185,7 @@
         <table th:if="${!#lists.isEmpty(passwords)}">
             <thead>
             <tr>
-                <th>🏷️ Service</th>
+                <th>🏷️ Service & User</th>
                 <th>🔑 Password</th>
                 <th>📋 Copy</th>
                 <th>👁️ Show</th>
@@ -185,12 +197,21 @@
             <tr th:each="entry, iterStat : ${passwords}">
                 <td>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <strong th:text="${entry.name}">Service Name</strong>
-                        <span th:if="${#temporals.format(entry.createdAt, 'yyyy-MM-dd') < #temporals.format(#temporals.createNow().minusMonths(6), 'yyyy-MM-dd') and (entry.lastModifiedAt == null or #temporals.format(entry.lastModifiedAt, 'yyyy-MM-dd') < #temporals.format(#temporals.createNow().minusMonths(3), 'yyyy-MM-dd'))}"
-                              class="password-age-warning"
-                              data-tooltip="This password is outdated. Created over 6 months ago and hasn't been updated in 3+ months. Consider refreshing for better security.">
-                            ⚠️
-                        </span>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <strong th:text="${entry.serviceName}">Service Name</strong>
+                                <span th:if="${#temporals.format(entry.createdAt, 'yyyy-MM-dd') < #temporals.format(#temporals.createNow().minusMonths(6), 'yyyy-MM-dd') and (entry.lastModifiedAt == null or #temporals.format(entry.lastModifiedAt, 'yyyy-MM-dd') < #temporals.format(#temporals.createNow().minusMonths(3), 'yyyy-MM-dd'))}"
+                                      class="password-age-warning"
+                                      data-tooltip="This password is outdated. Created over 6 months ago and hasn't been updated in 3+ months. Consider refreshing for better security.">
+                                    ⚠️
+                                </span>
+                            </div>
+                            <div th:if="${entry.username != null and !#strings.isEmpty(entry.username)}"
+                                 class="username-display"
+                                 th:text="'👤 ' + ${entry.username}">
+                                👤 username@example.com
+                            </div>
+                        </div>
                     </div>
                 </td>
                 <td th:attr="data-encrypted=${entry.encrypted},data-iv=${entry.iv},data-salt=${entry.salt}">
@@ -222,7 +243,7 @@
                     <div class="table-actions">
                         <button type="button"
                                 class="btn btn-secondary edit-btn"
-                                th:attr="data-id=${entry.id}, data-name=${entry.name}, data-input-id='pw' + ${iterStat.index}">
+                                th:attr="data-id=${entry.id}, data-service-name=${entry.serviceName}, data-username=${entry.username}, data-input-id='pw' + ${iterStat.index}">
                             ✏️ Edit
                         </button>
                     </div>

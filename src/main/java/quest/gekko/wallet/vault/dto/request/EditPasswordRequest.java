@@ -1,12 +1,16 @@
 package quest.gekko.wallet.vault.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
 public class EditPasswordRequest {
     @NotBlank(message = "Password ID is required")
     private String id;
+
+    @Size(max = 200, message = "Username cannot exceed 200 characters")
+    private String username;
 
     @NotBlank(message = "Encrypted password data is required")
     private String encrypted;

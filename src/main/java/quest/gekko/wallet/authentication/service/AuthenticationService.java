@@ -18,6 +18,7 @@ import quest.gekko.wallet.security.util.SecurityUtil;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,11 @@ public class AuthenticationService {
     private final ApplicationProperties applicationProperties;
 
     private final SecureRandom secureRandom = new SecureRandom();
+
+    private final ConcurrentHashMap<String, Integer> failedVerificationAttempts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LocalDateTime> lastFailedAttempt = new ConcurrentHashMap<>();
+    private static final int MAX_FAILED_VERIFICATION_ATTEMPTS = 5;
+    private static final int VERIFICATION_ATTEMPT_WINDOW_MINUTES = 30;
 
     public void sendVerificationCode(final String email, final String clientIp) {
         validateRateLimit(email, clientIp, RateLimitingService.RateLimitType.EMAIL_SEND);
@@ -79,11 +85,26 @@ public class AuthenticationService {
         if (hasExceededAttempts(verificationCode)) {
             verificationCodeRepository.delete(verificationCode);
             handleFailedVerification(email, clientIp, "Too many verification attempts");
+
+            emailService.sendSecurityAlert(
+                    email,
+                    "Too Many Verification Attempts",
+                    String.format("Multiple failed verification code attempts detected from IP address %s. " +
+                            "If this wasn't you, someone may be trying to access your account.", clientIp),
+                    clientIp
+            );
+
             return Optional.empty();
         }
 
+        checkSuspiciousVerificationActivity(email, clientIp);
+
         verificationCodeRepository.delete(verificationCode);
         rateLimitingService.recordAttempt(email + ":" + clientIp, RateLimitingService.RateLimitType.CODE_VERIFY);
+
+        final String attemptKey = email + ":" + clientIp;
+        failedVerificationAttempts.remove(attemptKey);
+        lastFailedAttempt.remove(attemptKey);
 
         return findOrCreateUser(email, clientIp);
     }
@@ -96,6 +117,52 @@ public class AuthenticationService {
         if (deletedCount > 0) {
             log.debug("Cleaned up {} expired verification codes", deletedCount);
         }
+
+        cleanupOldFailedAttempts();
+    }
+
+    private void cleanupOldFailedAttempts() {
+        final LocalDateTime cutoff = LocalDateTime.now().minusMinutes(VERIFICATION_ATTEMPT_WINDOW_MINUTES);
+
+        lastFailedAttempt.entrySet().removeIf(entry -> {
+            if (entry.getValue().isBefore(cutoff)) {
+                failedVerificationAttempts.remove(entry.getKey());
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void checkSuspiciousVerificationActivity(final String email, final String clientIp) {
+        final String attemptKey = email + ":" + clientIp;
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime windowStart = now.minusMinutes(VERIFICATION_ATTEMPT_WINDOW_MINUTES);
+
+        final LocalDateTime lastAttempt = lastFailedAttempt.get(attemptKey);
+        if (lastAttempt != null && lastAttempt.isBefore(windowStart)) {
+            failedVerificationAttempts.remove(attemptKey);
+            lastFailedAttempt.remove(attemptKey);
+            return;
+        }
+
+        final int attempts = failedVerificationAttempts.getOrDefault(attemptKey, 0);
+
+        if (attempts >= 3) {
+            emailService.sendSecurityAlert(
+                    email,
+                    "Multiple Failed Verification Attempts Before Success",
+                    String.format("There were %d failed verification attempts from IP address %s before a successful login. " +
+                            "If this wasn't you, someone may have been trying to access your account.", attempts, clientIp),
+                    clientIp
+            );
+
+            securityAuditService.logSecurityEvent(
+                    SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                    email,
+                    String.format("Multiple failed verification attempts (%d) before success", attempts),
+                    clientIp
+            );
+        }
     }
 
     private void validateRateLimit(final String email, final String clientIp, final RateLimitingService.RateLimitType type) {
@@ -106,6 +173,16 @@ public class AuthenticationService {
                     SecurityAuditService.SecurityEventType.RATE_LIMIT_EXCEEDED,
                     email,
                     "Rate limit exceeded for " + type,
+                    clientIp
+            );
+
+            emailService.sendSecurityAlert(
+                    email,
+                    "Rate Limit Exceeded",
+                    String.format("Too many %s requests detected from IP address %s. " +
+                                    "If this wasn't you, someone may be trying to access your account repeatedly.",
+                            type == RateLimitingService.RateLimitType.EMAIL_SEND ? "login code" : "verification",
+                            clientIp),
                     clientIp
             );
 
@@ -149,6 +226,40 @@ public class AuthenticationService {
     private void handleFailedVerification(final String email, final String clientIp, final String reason) {
         securityAuditService.logFailedAuthentication(email, clientIp, reason);
         log.warn("Authentication failed for {}: {}", SecurityUtil.maskEmail(email), reason);
+
+        final String attemptKey = email + ":" + clientIp;
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime windowStart = now.minusMinutes(VERIFICATION_ATTEMPT_WINDOW_MINUTES);
+
+        final LocalDateTime lastAttempt = lastFailedAttempt.get(attemptKey);
+        if (lastAttempt != null && lastAttempt.isBefore(windowStart)) {
+            failedVerificationAttempts.remove(attemptKey);
+            lastFailedAttempt.remove(attemptKey);
+        }
+
+        final int attempts = failedVerificationAttempts.merge(attemptKey, 1, Integer::sum);
+        lastFailedAttempt.put(attemptKey, now);
+
+        log.warn("Failed verification attempt #{} for user: {} from IP: {}", attempts, SecurityUtil.maskEmail(email), clientIp);
+
+        if (attempts >= MAX_FAILED_VERIFICATION_ATTEMPTS) {
+            emailService.sendSecurityAlert(
+                    email,
+                    "Multiple Failed Verification Attempts",
+                    String.format("We detected %d failed verification attempts in the last %d minutes from IP address %s. " +
+                                    "If this wasn't you, your account may be under attack. " +
+                                    "Consider using a different device or network if you suspect malicious activity.",
+                            attempts, VERIFICATION_ATTEMPT_WINDOW_MINUTES, clientIp),
+                    clientIp
+            );
+
+            securityAuditService.logSecurityEvent(
+                    SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                    email,
+                    String.format("Too many failed verification attempts: %d in %d minutes", attempts, VERIFICATION_ATTEMPT_WINDOW_MINUTES),
+                    clientIp
+            );
+        }
     }
 
     private Optional<User> findOrCreateUser(final String email, final String clientIp) {
@@ -156,6 +267,9 @@ public class AuthenticationService {
 
         if (existingUser.isPresent()) {
             User user = existingUser.get();
+
+            checkSuspiciousLoginActivity(user, clientIp);
+
             updateUserLoginInfo(user, clientIp);
             user = userRepository.save(user);
 
@@ -166,9 +280,54 @@ public class AuthenticationService {
             final User user = createNewUser(email, clientIp);
             final User savedUser = userRepository.save(user);
 
+            emailService.sendSecurityAlert(
+                    email,
+                    "New Account Created",
+                    String.format("Welcome to %s! Your account was just created from IP address %s. " +
+                                    "If you didn't create this account, please contact support immediately.",
+                            applicationProperties.getName(), clientIp),
+                    clientIp
+            );
+
             securityAuditService.logSuccessfulAuthentication(email, clientIp);
             log.info("New user created: {}", SecurityUtil.maskEmail(email));
             return Optional.of(savedUser);
+        }
+    }
+
+    private void checkSuspiciousLoginActivity(final User user, final String clientIp) {
+        if (user.getLastLoginIp() != null && !user.getLastLoginIp().equals(clientIp)) {
+            emailService.sendSecurityAlert(
+                    user.getEmail(),
+                    "Login from New Location",
+                    String.format("Your account was accessed from a new IP address: %s. " +
+                                    "Previous login was from: %s. " +
+                                    "If this wasn't you, please secure your account immediately.",
+                            clientIp, user.getLastLoginIp()),
+                    clientIp
+            );
+
+            securityAuditService.logSecurityEvent(
+                    SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                    user.getEmail(),
+                    String.format("Login from new IP. Previous: %s, Current: %s", user.getLastLoginIp(), clientIp),
+                    clientIp
+            );
+        }
+
+        if (user.getLastLoginAt() != null) {
+            final LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+            if (user.getLastLoginAt().isAfter(fiveMinutesAgo)) {
+                log.warn("Rapid successive login detected for user: {} from IP: {}",
+                        SecurityUtil.maskEmail(user.getEmail()), clientIp);
+
+                securityAuditService.logSecurityEvent(
+                        SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                        user.getEmail(),
+                        "Rapid successive login detected",
+                        clientIp
+                );
+            }
         }
     }
 

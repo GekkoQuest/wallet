@@ -7,7 +7,9 @@ WalletApp.Vault.init = () => {
     WalletApp.Vault.keyStorage = new WalletApp.Crypto.SecureKeyStorage();
     WalletApp.Vault.isFirstTimeVault = document.querySelectorAll("tbody tr").length === 0;
     WalletApp.Vault.currentEditId = null;
-    WalletApp.Vault.currentEditName = null;
+    WalletApp.Vault.currentEditServiceName = null;
+    WalletApp.Vault.currentEditUsername = null;
+    WalletApp.Vault.failedUnlockAttempts = 0;
 
     WalletApp.Vault.checkVaultStatus();
     WalletApp.Vault.initEventListeners();
@@ -39,33 +41,54 @@ WalletApp.Vault.setupActivityTracking = () => {
 WalletApp.Vault.checkVaultStatus = () => {
     const rows = document.querySelectorAll("tbody tr");
 
-    if (rows.length > 0) {
-        const firstPasswordInput = rows[0].children[1].querySelector('input');
+    console.log('Vault status check:', {
+        rowCount: rows.length,
+        isFirstTimeVault: WalletApp.Vault.isFirstTimeVault
+    });
 
-        if (firstPasswordInput.value && firstPasswordInput.value !== '••••••••••••') {
-            WalletApp.Vault.keyStorage.vaultUnlocked = true;
+    if (rows.length === 0) {
+        console.log('No passwords found - this is a first-time vault. Clearing all session data.');
 
-            try {
-                sessionStorage.setItem('vaultUnlocked', 'true');
-                sessionStorage.setItem('vaultUnlockedTime', Date.now().toString());
-            } catch (e) {
-                // Ignore if sessionStorage not available
-            }
-            return;
+        try {
+            sessionStorage.removeItem('vaultUnlocked');
+            sessionStorage.removeItem('vaultUnlockedTime');
+            console.log('Session storage forcibly cleared');
+        } catch (e) {
+            console.warn('Could not clear session storage:', e);
         }
 
-        if (WalletApp.Vault.keyStorage.isAvailable()) {
-            console.log('Vault should still be unlocked, but passwords are encrypted. Prompting for master password.');
+        WalletApp.Vault.keyStorage.clear();
+        console.log('Key storage forcibly cleared');
+
+        const keyAvailable = WalletApp.Vault.keyStorage.isAvailable();
+        console.log('After clearing - key available:', keyAvailable);
+
+        if (!keyAvailable) {
+            console.log('Master password not available, showing modal for first-time setup');
             WalletApp.Vault.showMasterPasswordModal();
-            return;
-        }
-
-        if (!WalletApp.Vault.keyStorage.isAvailable()) {
+        } else {
+            console.error('ERROR: Key still available after clearing! This should not happen.');
             WalletApp.Vault.showMasterPasswordModal();
         }
-    } else if (WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.isAvailable()) {
-        WalletApp.Vault.showMasterPasswordModal();
+        return;
     }
+
+    const firstPasswordInput = rows[0].children[1].querySelector('input');
+
+    if (firstPasswordInput.value && firstPasswordInput.value !== '••••••••••••') {
+        WalletApp.Vault.keyStorage.vaultUnlocked = true;
+
+        try {
+            sessionStorage.setItem('vaultUnlocked', 'true');
+            sessionStorage.setItem('vaultUnlockedTime', Date.now().toString());
+        } catch (e) {
+            console.warn('SessionStorage not available, using memory only');
+        }
+        return;
+    }
+
+    console.log('Existing passwords found but encrypted, prompting for unlock');
+    WalletApp.Vault.showMasterPasswordModal();
 };
 
 WalletApp.Vault.showMasterPasswordModal = () => {
@@ -141,6 +164,12 @@ WalletApp.Vault.submitMasterPassword = async () => {
             await WalletApp.Vault.keyStorage.set(pw);
             WalletApp.Vault.hideMasterPasswordModal();
             WalletApp.showToast('Welcome! Your secure vault has been created.');
+
+            try {
+                await fetch('/vault/unlock-success', { method: 'POST' });
+            } catch (e) {
+                console.warn('Could not notify server of successful unlock:', e);
+            }
         } else {
             await WalletApp.Vault.unlockVault(pw);
         }
@@ -152,10 +181,23 @@ WalletApp.Vault.submitMasterPassword = async () => {
         }
     } catch (error) {
         console.error('Master password submission failed:', error);
+
+        WalletApp.Vault.failedUnlockAttempts++;
+
+        try {
+            await fetch('/vault/unlock-failed', { method: 'POST' });
+        } catch (e) {
+            console.warn('Could not notify server of failed unlock:', e);
+        }
+
         const message = WalletApp.Vault.isFirstTimeVault && !WalletApp.Vault.keyStorage.vaultUnlocked ?
             'Failed to create vault. Please try again.' :
-            'An error occurred. Please try again.';
+            'Incorrect master password. Please try again.';
         WalletApp.showToast(message, 'error');
+
+        if (WalletApp.Vault.failedUnlockAttempts >= 3) {
+            WalletApp.showToast('Multiple failed attempts detected. Please wait before trying again.', 'warning');
+        }
     } finally {
         WalletApp.setButtonLoading('unlockBtn', false);
         document.getElementById("masterPasswordInput").value = '';
@@ -178,7 +220,7 @@ WalletApp.Vault.unlockVault = async (password) => {
         } catch (error) {
             console.error('Decryption failed for entry:', error);
             document.getElementById("unlockError").classList.remove('hidden');
-            return;
+            throw error; // Re-throw to trigger failed attempt tracking
         }
     }
 
@@ -186,6 +228,14 @@ WalletApp.Vault.unlockVault = async (password) => {
         await WalletApp.Vault.keyStorage.set(password);
         WalletApp.Vault.hideMasterPasswordModal();
         WalletApp.showToast(`Vault unlocked! Found ${rows.length} password${rows.length !== 1 ? 's' : ''}.`);
+
+        WalletApp.Vault.failedUnlockAttempts = 0;
+
+        try {
+            await fetch('/vault/unlock-success', { method: 'POST' });
+        } catch (e) {
+            console.warn('Could not notify server of successful unlock:', e);
+        }
 
         document.getElementById("unlockError").classList.add('hidden');
     }
@@ -267,24 +317,34 @@ WalletApp.Vault.copyToClipboard = async (id) => {
     }
 };
 
-WalletApp.Vault.openEditModal = (id, inputId, name) => {
-    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.openEditModal(id, inputId, name))) return;
+WalletApp.Vault.openEditModal = (id, inputId, serviceName, username) => {
+    if (!WalletApp.Vault.requireMasterPassword(() => WalletApp.Vault.openEditModal(id, inputId, serviceName, username))) return;
 
     WalletApp.Vault.currentEditId = id;
-    WalletApp.Vault.currentEditName = name;
-    document.getElementById("editLabel").textContent = `Editing password for "${name}"`;
+    WalletApp.Vault.currentEditServiceName = serviceName;
+    WalletApp.Vault.currentEditUsername = username;
+
+    document.getElementById("editLabel").textContent = `Editing password for "${serviceName}"`;
+    document.getElementById("editUsernameInput").value = username || "";
     document.getElementById("editPasswordInput").value = "";
     document.getElementById("editModal").classList.remove('hidden');
+
+    setTimeout(() => {
+        const usernameInput = document.getElementById("editUsernameInput");
+        if (usernameInput) usernameInput.focus();
+    }, 100);
 };
 
 WalletApp.Vault.closeEditModal = () => {
     document.getElementById("editModal").classList.add('hidden');
     WalletApp.Vault.currentEditId = null;
-    WalletApp.Vault.currentEditName = null;
+    WalletApp.Vault.currentEditServiceName = null;
+    WalletApp.Vault.currentEditUsername = null;
 };
 
 WalletApp.Vault.handleEditSubmit = async () => {
     const newPassword = document.getElementById("editPasswordInput").value;
+    const newUsername = document.getElementById("editUsernameInput").value.trim();
 
     if (!newPassword.trim()) {
         WalletApp.showToast('Password cannot be empty', 'error');
@@ -306,6 +366,7 @@ WalletApp.Vault.handleEditSubmit = async () => {
 
         const payload = new URLSearchParams();
         payload.append("id", WalletApp.Vault.currentEditId);
+        payload.append("username", newUsername || "");
         payload.append("encrypted", WalletApp.Crypto.arrayBufferToBase64(encrypted));
         payload.append("iv", WalletApp.Crypto.arrayBufferToBase64(iv));
         payload.append("salt", WalletApp.Crypto.arrayBufferToBase64(salt));
@@ -316,7 +377,7 @@ WalletApp.Vault.handleEditSubmit = async () => {
         });
 
         if (response.ok) {
-            WalletApp.showToast(`Password for "${WalletApp.Vault.currentEditName}" updated successfully!`);
+            WalletApp.showToast(`Password for "${WalletApp.Vault.currentEditServiceName}" updated successfully!`);
             setTimeout(() => location.reload(), 1000);
         } else {
             throw new Error('Server error');
@@ -332,10 +393,11 @@ WalletApp.Vault.handleEditSubmit = async () => {
 WalletApp.Vault.handleGenerateSubmit = async (e) => {
     e.preventDefault();
 
-    const name = document.getElementById("nameInput").value.trim();
+    const serviceName = document.getElementById("serviceNameInput").value.trim();
+    const username = document.getElementById("usernameInput").value.trim();
     const plaintext = document.getElementById("generatedPasswordInput").value;
 
-    if (!name) {
+    if (!serviceName) {
         WalletApp.showToast('Please enter a service name', 'error');
         return;
     }
@@ -359,7 +421,8 @@ WalletApp.Vault.handleGenerateSubmit = async (e) => {
         const { encrypted, iv, salt } = await WalletApp.Crypto.encryptPassword(plaintext, WalletApp.Vault.keyStorage);
 
         const payload = new URLSearchParams();
-        payload.append("name", name);
+        payload.append("serviceName", serviceName);
+        payload.append("username", username || "");
         payload.append("encrypted", WalletApp.Crypto.arrayBufferToBase64(encrypted));
         payload.append("iv", WalletApp.Crypto.arrayBufferToBase64(iv));
         payload.append("salt", WalletApp.Crypto.arrayBufferToBase64(salt));
@@ -370,7 +433,8 @@ WalletApp.Vault.handleGenerateSubmit = async (e) => {
         });
 
         if (response.ok) {
-            WalletApp.showToast(`Password for "${name}" saved successfully!`);
+            const displayName = username ? `${serviceName} (${username})` : serviceName;
+            WalletApp.showToast(`Password for "${displayName}" saved successfully!`);
             setTimeout(() => location.reload(), 1000);
         } else {
             throw new Error('Server error');
@@ -387,9 +451,10 @@ WalletApp.Vault.initEventListeners = () => {
     document.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = btn.getAttribute('data-id');
-            const name = btn.getAttribute('data-name');
+            const serviceName = btn.getAttribute('data-service-name');
+            const username = btn.getAttribute('data-username');
             const inputId = btn.getAttribute('data-input-id');
-            WalletApp.Vault.openEditModal(id, inputId, name);
+            WalletApp.Vault.openEditModal(id, inputId, serviceName, username);
         });
     });
 
@@ -405,6 +470,12 @@ WalletApp.Vault.initEventListeners = () => {
     document.getElementById("editPasswordInput")?.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
             WalletApp.Vault.handleEditSubmit().catch(console.error);
+        }
+    });
+
+    document.getElementById("editUsernameInput")?.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            document.getElementById("editPasswordInput").focus();
         }
     });
 
