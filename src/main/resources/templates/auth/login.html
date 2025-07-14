@@ -37,12 +37,14 @@
         </button>
     </form>
 
-    <div th:if="${error}" class="error-message mt-20" th:text="${error}">
-        Error message.
+    <div th:if="${success != null and !#strings.isEmpty(success)}"
+         class="toast success show"
+         th:text="${success}">
     </div>
 
-    <div th:if="${success}" class="generated-password-display mt-20" th:text="${success}">
-        Success message.
+    <div th:if="${error != null and !#strings.isEmpty(error)}"
+         class="error-message mt-20"
+         th:text="${error}">
     </div>
 
     <div class="text-center mt-20">

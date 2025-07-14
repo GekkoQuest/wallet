@@ -50,9 +50,79 @@
             margin: 15px 0;
             font-size: 0.875rem;
         }
+
+        .confirmation-modal .modal-box {
+            max-width: 500px;
+        }
+
+        .confirmation-content {
+            text-align: left;
+            margin: 20px 0;
+        }
+
+        .confirmation-content ul {
+            margin: 15px 0;
+            padding-left: 20px;
+            line-height: 1.6;
+        }
+
+        .confirmation-content .warning-text {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin: 15px 0;
+            color: var(--danger-color);
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
+
+<div id="initialConfirmationModal" class="modal-overlay hidden confirmation-modal">
+    <div class="modal-box">
+        <h2 style="color: var(--danger-color);">⚠️ FINAL WARNING</h2>
+        <div class="confirmation-content">
+            <p style="color: var(--text-primary); font-weight: 600; margin-bottom: 15px;">
+                This will PERMANENTLY DELETE your account and ALL data.
+            </p>
+            <ul style="color: var(--text-primary);">
+                <li>All saved passwords will be lost forever</li>
+                <li>Your account cannot be recovered</li>
+                <li>This action cannot be undone</li>
+            </ul>
+            <div class="warning-text">
+                ⚠️ Make sure you have exported any data you need to keep before proceeding.
+            </div>
+        </div>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+            <button class="btn btn-outline" onclick="cancelInitialConfirmation()">Cancel</button>
+            <button class="btn btn-danger" onclick="proceedToPasswordVerification()">
+                🔑 Verify Master Password
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="finalConfirmationModal" class="modal-overlay hidden confirmation-modal">
+    <div class="modal-box">
+        <h2 style="color: var(--success-color);">🔑 Master Password Verified!</h2>
+        <div class="confirmation-content">
+            <p style="color: var(--text-primary); font-weight: 600; font-size: 1.1rem; margin-bottom: 20px;">
+                LAST CHANCE TO CANCEL!
+            </p>
+            <div class="warning-text">
+                Your account and all data will be permanently deleted in the next step. This cannot be undone.
+            </div>
+        </div>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+            <button class="btn btn-outline" onclick="cancelFinalConfirmation()">Cancel - Keep My Account</button>
+            <button class="btn btn-danger" onclick="proceedWithAccountDeletion()">
+                🗑️ Delete Account Permanently
+            </button>
+        </div>
+    </div>
+</div>
 
 <div id="deleteVerificationModal" class="modal-overlay hidden">
     <div class="modal-box">
@@ -66,7 +136,7 @@
         </div>
         <div style="display: flex; gap: 10px;">
             <button class="btn btn-danger" onclick="verifyAndDeleteAccount()">
-                <span id="verifyDeleteBtnText">🔑 Verify & Delete Account</span>
+                <span id="verifyDeleteBtnText">🔑 Verify & Continue</span>
                 <span id="verifyDeleteBtnLoader" class="loading hidden"></span>
             </button>
             <button class="btn btn-outline" onclick="cancelAccountDeletion()">Cancel</button>
@@ -236,20 +306,34 @@
             return;
         }
 
-        const confirmed = confirm(
-            '⚠️ FINAL WARNING ⚠️\n\n' +
-            'This will PERMANENTLY DELETE your account and ALL data.\n\n' +
-            '• All saved passwords will be lost forever\n' +
-            '• Your account cannot be recovered\n' +
-            '• This action cannot be undone\n\n' +
-            'Click OK to verify your master password, or Cancel to stop.'
-        );
+        showInitialConfirmationModal();
+    }
 
-        if (!confirmed) {
-            return;
-        }
+    function showInitialConfirmationModal() {
+        document.getElementById('initialConfirmationModal').classList.remove('hidden');
+    }
 
+    function cancelInitialConfirmation() {
+        document.getElementById('initialConfirmationModal').classList.add('hidden');
+    }
+
+    function proceedToPasswordVerification() {
+        document.getElementById('initialConfirmationModal').classList.add('hidden');
         showDeleteVerificationModal();
+    }
+
+    function showFinalConfirmationModal() {
+        document.getElementById('finalConfirmationModal').classList.remove('hidden');
+    }
+
+    function cancelFinalConfirmation() {
+        document.getElementById('finalConfirmationModal').classList.add('hidden');
+        cancelAccountDeletion();
+    }
+
+    function proceedWithAccountDeletion() {
+        document.getElementById('finalConfirmationModal').classList.add('hidden');
+        document.getElementById('deleteAccountForm').submit();
     }
 
     function showDeleteVerificationModal() {
@@ -295,17 +379,9 @@
             const verified = await verifyMasterPasswordAgainstVault(masterPassword);
 
             if (verified) {
-                const finalConfirm = confirm(
-                    'Master password verified!\n\n' +
-                    'LAST CHANCE TO CANCEL!\n\n' +
-                    'Click OK to permanently delete your account, or Cancel to stop.'
-                );
-
-                if (finalConfirm) {
-                    document.getElementById('deleteAccountForm').submit();
-                } else {
-                    cancelAccountDeletion();
-                }
+                // Hide verification modal and show final confirmation modal
+                document.getElementById('deleteVerificationModal').classList.add('hidden');
+                showFinalConfirmationModal();
             } else {
                 errorElement.classList.remove('hidden');
                 WalletApp.showToast('Incorrect master password. Please try again.', 'error');
@@ -357,6 +433,10 @@
         if (e.target.classList.contains('modal-overlay')) {
             if (e.target.id === 'deleteVerificationModal') {
                 cancelAccountDeletion();
+            } else if (e.target.id === 'initialConfirmationModal') {
+                cancelInitialConfirmation();
+            } else if (e.target.id === 'finalConfirmationModal') {
+                cancelFinalConfirmation();
             }
         }
     });

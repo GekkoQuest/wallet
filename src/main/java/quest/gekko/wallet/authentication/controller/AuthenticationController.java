@@ -36,12 +36,23 @@ public class AuthenticationController {
     private final SessionManagementService sessionManagementService;
 
     @GetMapping("/")
-    public String loginPage(final HttpSession session, final HttpServletRequest request) {
+    public String loginPage(final HttpSession session,
+                            final HttpServletRequest request,
+                            final Model model,
+                            @ModelAttribute(name = "success") String success,
+                            @ModelAttribute(name = "error") String error) {
         if (sessionManagementService.isUserAuthenticated(session)) {
             final String email = sessionManagementService.getUserEmail(session);
-            log.info("User already authenticated ({}), redirecting to dashboard",
-                    SecurityUtil.maskEmail(email));
+            log.info("User already authenticated ({}), redirecting to dashboard", SecurityUtil.maskEmail(email));
             return DASHBOARD_REDIRECT;
+        }
+
+        if (success != null && !success.isBlank()) {
+            model.addAttribute("success", success);
+        }
+
+        if (error != null && !error.isBlank()) {
+            model.addAttribute("error", error);
         }
 
         log.debug("Showing login page - {}", SecurityUtil.createSecurityContext(request));
