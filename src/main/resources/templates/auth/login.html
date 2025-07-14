@@ -38,7 +38,11 @@
     </form>
 
     <div th:if="${error}" class="error-message mt-20" th:text="${error}">
-        Error message will appear here
+        Error message.
+    </div>
+
+    <div th:if="${success}" class="generated-password-display mt-20" th:text="${success}">
+        Success message.
     </div>
 
     <div class="text-center mt-20">

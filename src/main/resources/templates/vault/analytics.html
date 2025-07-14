@@ -22,7 +22,10 @@
 <div class="container dashboard-container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
         <h2>📊 Vault Analytics</h2>
-        <a href="/vault/dashboard" class="btn btn-outline">🔙 Back to Dashboard</a>
+        <div style="display: flex; gap: 10px;">
+            <a href="/vault/utilities" class="btn btn-outline">🛠️ Utilities</a>
+            <a href="/vault/dashboard" class="btn btn-outline">🔙 Back to Dashboard</a>
+        </div>
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px;">
@@ -166,7 +169,27 @@
             </tr>
             </thead>
             <tbody>
-            <tr th:each="entry : ${(searchQuery != null and !searchQuery.trim().isEmpty()) ? searchResults : passwords}">
+            <tr th:if="${searchQuery != null and !searchQuery.trim().isEmpty()}" th:each="entry : ${searchResults}">
+                <td>
+                    <div>
+                        <strong th:text="${entry.serviceName}">Service Name</strong>
+                        <div th:if="${entry.username != null and !#strings.isEmpty(entry.username)}"
+                             class="username-display"
+                             th:text="'👤 ' + ${entry.username}">
+                            👤 username@example.com
+                        </div>
+                    </div>
+                </td>
+                <td th:text="${#temporals.format(entry.createdAt, 'MMM dd, yyyy')}">Dec 25, 2024</td>
+                <td th:text="${entry.lastModifiedAt != null ? #temporals.format(entry.lastModifiedAt, 'MMM dd, yyyy') : 'Never'}">Never</td>
+                <td>
+                    <span style="background: rgba(102, 126, 234, 0.1); color: var(--primary-color); padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; font-weight: 600;"
+                          th:text="${entry.accessCount}">0</span>
+                </td>
+                <td th:text="${entry.lastAccessedAt != null ? #temporals.format(entry.lastAccessedAt, 'MMM dd, HH:mm') : 'Never'}">Never</td>
+            </tr>
+
+            <tr th:if="${searchQuery == null or searchQuery.trim().isEmpty()}" th:each="entry : ${passwords}">
                 <td>
                     <div>
                         <strong th:text="${entry.serviceName}">Service Name</strong>

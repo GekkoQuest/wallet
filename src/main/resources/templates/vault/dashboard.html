@@ -70,7 +70,10 @@
 <div class="container dashboard-container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
         <h2 style="margin: 0;">🔐 Password Vault</h2>
-        <a href="/vault/analytics" class="btn btn-outline">📊 Analytics</a>
+        <div style="display: flex; gap: 10px;">
+            <a href="/vault/analytics" class="btn btn-outline">📊 Analytics</a>
+            <a href="/vault/utilities" class="btn btn-outline">🛠️ Utilities</a>
+        </div>
     </div>
 
     <div th:if="${agedPasswordCount != null and agedPasswordCount > 0}"

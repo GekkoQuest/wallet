@@ -135,6 +135,11 @@ public class GlobalExceptionHandler {
             case STORAGE_ERROR -> "Storage error occurred";
         };
 
+        if (request.getRequestURI().contains("/delete-account")) {
+            redirectAttributes.addFlashAttribute("error", "Account deletion failed: " + errorMessage);
+            return "redirect:/vault/utilities";
+        }
+
         redirectAttributes.addFlashAttribute("error", errorMessage);
         return "redirect:/vault/dashboard";
     }

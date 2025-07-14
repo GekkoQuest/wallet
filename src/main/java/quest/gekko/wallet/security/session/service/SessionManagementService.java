@@ -145,7 +145,9 @@ public class SessionManagementService {
     public void invalidateSession(final HttpSession session) {
         try {
             final String email = getUserEmail(session);
+
             session.invalidate();
+
             if (email != null) {
                 log.info("Session invalidated for user: {}", SecurityUtil.maskEmail(email));
             }
