@@ -47,7 +47,7 @@ WalletApp.Vault.checkVaultStatus = () => {
     });
 
     if (rows.length === 0) {
-        console.log('No passwords found - this is a first-time vault. Clearing all session data.');
+        console.log('No passwords found - this is potentially a first-time vault. Clearing any previous session data.');
 
         try {
             sessionStorage.removeItem('vaultUnlocked');

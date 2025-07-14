@@ -186,8 +186,13 @@ public class AuthenticationController {
     }
 
     private String handleAuthenticationError(final Model model, final String email, final String clientIp, final AuthenticationException e) {
-        model.addAttribute("error", "Unable to send verification code. Please check your email and try again.");
-        log.warn("Authentication error for email: {} from IP: {}: {}", SecurityUtil.maskEmail(email), clientIp, e.getMessage());
+        if (e.getMessage().contains("locked")) {
+            model.addAttribute("error", "Your account is temporarily locked due to multiple failed verification attempts. Please wait or contact support.");
+            log.warn("Account locked error for email: {} from IP: {}: {}", SecurityUtil.maskEmail(email), clientIp, e.getMessage());
+        } else {
+            model.addAttribute("error", "Unable to send verification code. Please check your email and try again.");
+            log.warn("Authentication error for email: {} from IP: {}: {}", SecurityUtil.maskEmail(email), clientIp, e.getMessage());
+        }
         return LOGIN_VIEW;
     }
 
@@ -204,7 +209,11 @@ public class AuthenticationController {
     }
 
     private String handleVerificationError(final Model model, final String email, final AuthenticationException e) {
-        model.addAttribute("error", "Verification failed. Please try again or request a new code.");
+        if (e.getMessage().contains("locked")) {
+            model.addAttribute("error", "Your account is temporarily locked. Please wait or contact support.");
+        } else {
+            model.addAttribute("error", "Verification failed. Please try again or request a new code.");
+        }
         model.addAttribute("email", email);
         return VERIFY_VIEW;
     }

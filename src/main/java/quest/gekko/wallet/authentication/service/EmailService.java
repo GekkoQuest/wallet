@@ -24,39 +24,35 @@ import java.util.Properties;
 @RequiredArgsConstructor
 @Slf4j
 public class EmailService {
-
     private final JavaMailSender mailSender;
     private final ApplicationProperties appProperties;
 
     @Value("${spring.mail.username}")
     private String fromEmail;
 
-    public void sendVerificationCode(String toEmail, String code) {
+    public void sendVerificationCode(final String toEmail, final String code) {
         log.info("=== EMAIL DEBUGGING START ===");
         log.info("Attempting to send verification code to: {}", SecurityUtil.maskEmail(toEmail));
 
-        // Debug mail sender configuration
         debugMailConfiguration();
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            final MimeMessage message = mailSender.createMimeMessage();
+            final MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setFrom(fromEmail, appProperties.getName());
             helper.setTo(toEmail);
             helper.setSubject("🔐 Your Security Code - " + appProperties.getName());
 
-            String htmlContent = buildVerificationEmailHtml(code);
+            final String htmlContent = buildVerificationEmailHtml(code);
             helper.setText(htmlContent, true);
 
-            // Debug the message before sending
             debugMessage(message);
 
             log.info("Calling mailSender.send()...");
             mailSender.send(message);
             log.info("mailSender.send() completed without exception");
 
-            // Try to verify if email was actually sent
             verifyEmailSent(message);
 
             log.info("Verification code email sent successfully to: {}", SecurityUtil.maskEmail(toEmail));
@@ -71,6 +67,26 @@ public class EmailService {
         log.info("=== EMAIL DEBUGGING END ===");
     }
 
+    public void sendWelcomeEmail(final String toEmail, final String clientIp) {
+        try {
+            final MimeMessage message = mailSender.createMimeMessage();
+            final MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, appProperties.getName());
+            helper.setTo(toEmail);
+            helper.setSubject("🎉 Welcome to " + appProperties.getName() + "!");
+
+            final String htmlContent = buildWelcomeEmailHtml(clientIp);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+
+            log.info("Welcome email sent to: {}", SecurityUtil.maskEmail(toEmail));
+        } catch (Exception e) {
+            log.error("Failed to send welcome email to: {}", SecurityUtil.maskEmail(toEmail), e);
+        }
+    }
+
     private void debugMailConfiguration() {
         log.info("=== MAIL CONFIGURATION DEBUG ===");
 
@@ -82,11 +98,10 @@ public class EmailService {
             log.info("Default encoding: {}", javaMailSender.getDefaultEncoding());
             log.info("Protocol: {}", javaMailSender.getProtocol());
 
-            Properties props = javaMailSender.getJavaMailProperties();
+            final Properties props = javaMailSender.getJavaMailProperties();
             log.info("JavaMail Properties:");
             props.forEach((key, value) -> log.info("  {}: {}", key, value));
 
-            // Test connection
             try {
                 log.info("Testing SMTP connection...");
                 javaMailSender.testConnection();
@@ -103,7 +118,7 @@ public class EmailService {
         log.info("=== END MAIL CONFIGURATION DEBUG ===");
     }
 
-    private void debugMessage(MimeMessage message) throws MessagingException {
+    private void debugMessage(final MimeMessage message) throws MessagingException {
         log.info("=== MESSAGE DEBUG ===");
         log.info("Message ID: {}", message.getMessageID());
         log.info("From: {}", java.util.Arrays.toString(message.getFrom()));
@@ -112,8 +127,8 @@ public class EmailService {
         log.info("Content Type: {}", message.getContentType());
         log.info("Size: {} bytes", message.getSize());
 
-        // Try to get the session
-        Session session = message.getSession();
+        final Session session = message.getSession();
+
         if (session != null) {
             log.info("Session debug: {}", session.getDebug());
             Properties sessionProps = session.getProperties();
@@ -124,14 +139,14 @@ public class EmailService {
         log.info("=== END MESSAGE DEBUG ===");
     }
 
-    private void verifyEmailSent(MimeMessage message) {
+    private void verifyEmailSent(final MimeMessage message) {
         log.info("=== VERIFYING EMAIL SENT ===");
 
         try {
-            // Try to get transport information
-            Session session = message.getSession();
+            final Session session = message.getSession();
+
             if (session != null) {
-                Transport transport = session.getTransport("smtp");
+                final Transport transport = session.getTransport("smtp");
                 log.info("Transport class: {}", transport.getClass().getName());
                 log.info("Transport connected: {}", transport.isConnected());
             }
@@ -142,14 +157,12 @@ public class EmailService {
         log.info("=== END VERIFICATION ===");
     }
 
-    // Add a test method to manually verify email sending
-    public void sendTestEmail(String toEmail) {
+    public void sendTestEmail(final String toEmail) {
         log.info("=== SENDING TEST EMAIL ===");
 
         try {
-            // Create a simple test message
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            final MimeMessage message = mailSender.createMimeMessage();
+            final MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
 
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
@@ -159,49 +172,117 @@ public class EmailService {
             log.info("Sending simple test email...");
             mailSender.send(message);
             log.info("Test email sent successfully");
-
         } catch (Exception e) {
             log.error("Test email failed", e);
             throw new RuntimeException("Test email failed", e);
         }
     }
 
-    public void sendSecurityAlert(String toEmail, String alertType, String details, String clientIp) {
+    public void sendSecurityAlert(final String toEmail, final String alertType, final String details, final String clientIp) {
         if (!appProperties.getEmail().isSecurityAlertsEnabled()) {
             return;
         }
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            final MimeMessage message = mailSender.createMimeMessage();
+            final MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setFrom(fromEmail, appProperties.getName() + " Security");
             helper.setTo(toEmail);
             helper.setSubject("🚨 Security Alert - " + appProperties.getName());
 
-            String htmlContent = buildSecurityAlertHtml(alertType, details, clientIp);
+            final String htmlContent = buildSecurityAlertHtml(alertType, details, clientIp);
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
 
             log.info("Security alert email sent to: {} for: {}", SecurityUtil.maskEmail(toEmail), alertType);
-
         } catch (Exception e) {
             log.error("Failed to send security alert to: {}", SecurityUtil.maskEmail(toEmail), e);
-            // Don't throw exception for security alerts to avoid breaking the flow
         }
+    }
+
+    private String buildWelcomeEmailHtml(final String clientIp) {
+        final LocalDateTime now = LocalDateTime.now();
+        final String formattedTime = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm"));
+        final String appName = appProperties.getName();
+        final String supportEmail = appProperties.getSupport().getEmail();
+
+        return String.format("""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Welcome</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+                        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 30px; text-align: center; }
+                        .content { padding: 30px; }
+                        .welcome-box { background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+                        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; }
+                        .features { background: #f8fdf8; border: 1px solid #10b981; border-radius: 6px; padding: 15px; margin: 20px 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>🎉 Welcome to %s!</h1>
+                            <p>Your secure password vault is ready</p>
+                        </div>
+                        <div class="content">
+                            <h2>Hello and welcome!</h2>
+                            <p>Your account has been successfully created and you're ready to start securing your passwords!</p>
+                            
+                            <div class="welcome-box">
+                                <h3>🔐 Your Vault is Ready!</h3>
+                                <p>You can now start generating and storing secure passwords. Everything is encrypted with your master password that only you know.</p>
+                            </div>
+                            
+                            <div class="features">
+                                <h3>🚀 What you can do:</h3>
+                                <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
+                                    <li><strong>Generate secure passwords</strong> with customizable options</li>
+                                    <li><strong>Store unlimited passwords</strong> safely encrypted</li>
+                                    <li><strong>Access from anywhere</strong> with your email and master password</li>
+                                    <li><strong>Zero-knowledge security</strong> - we can't see your passwords</li>
+                                </ul>
+                            </div>
+                            
+                            <h3>🔒 Security Information</h3>
+                            <p><strong>Account created:</strong> %s<br>
+                               <strong>IP Address:</strong> %s<br>
+                               <strong>Next steps:</strong> Log in and start adding your passwords!</p>
+                               
+                            <p style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 15px; color: #856404;">
+                                <strong>🛡️ Security Note:</strong> If you didn't create this account, please contact us immediately at %s
+                            </p>
+                        </div>
+                        <div class="footer">
+                            <p>Thank you for choosing %s for your password security!</p>
+                            <p>Need help? Contact us at %s</p>
+                            <p><strong>%s - Secure • Private • Encrypted</strong></p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, appName, formattedTime, clientIp, supportEmail, appName, supportEmail, appName);
     }
 
     /**
      * Builds HTML content for verification code email
      */
-    private String buildVerificationEmailHtml(String code) {
-        LocalDateTime now = LocalDateTime.now();
-        String formattedTime = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm"));
+    private String buildVerificationEmailHtml(final String code) {
+        final LocalDateTime now = LocalDateTime.now();
+        final String formattedTime = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm"));
+
         int expiryMinutes = appProperties.getVerification().getCode().getExpiry().getMinutes();
-        String expiryTime = now.plusMinutes(expiryMinutes).format(DateTimeFormatter.ofPattern("HH:mm"));
-        String appName = appProperties.getName();
-        String supportEmail = appProperties.getSupport().getEmail();
+
+        final String expiryTime = now.plusMinutes(expiryMinutes).format(DateTimeFormatter.ofPattern("HH:mm"));
+
+        final String appName = appProperties.getName();
+        final String supportEmail = appProperties.getSupport().getEmail();
 
         return String.format("""
                 <!DOCTYPE html>
@@ -261,11 +342,12 @@ public class EmailService {
     /**
      * Builds HTML content for security alert email
      */
-    private String buildSecurityAlertHtml(String alertType, String details, String clientIp) {
-        LocalDateTime now = LocalDateTime.now();
-        String formattedTime = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm"));
-        String appName = appProperties.getName();
-        String supportEmail = appProperties.getSupport().getEmail();
+    private String buildSecurityAlertHtml(final String alertType, final String details, final String clientIp) {
+        final LocalDateTime now = LocalDateTime.now();
+        final String formattedTime = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm"));
+
+        final String appName = appProperties.getName();
+        final String supportEmail = appProperties.getSupport().getEmail();
 
         return String.format("""
                 <!DOCTYPE html>

@@ -14,6 +14,7 @@ import quest.gekko.wallet.authentication.repository.VerificationCodeRepository;
 import quest.gekko.wallet.ratelimit.service.RateLimitingService;
 import quest.gekko.wallet.audit.service.SecurityAuditService;
 import quest.gekko.wallet.security.util.SecurityUtil;
+import quest.gekko.wallet.authentication.exception.AuthenticationException;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -42,6 +43,17 @@ public class AuthenticationService {
     public void sendVerificationCode(final String email, final String clientIp) {
         validateRateLimit(email, clientIp, RateLimitingService.RateLimitType.EMAIL_SEND);
 
+        final Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isPresent()) {
+            final User user = userOpt.get();
+
+            if (user.isAccountLocked()) {
+                handleLockedAccount(email, clientIp);
+                throw new AuthenticationException("Account is temporarily locked due to multiple failed attempts. Please try again later or contact support.");
+            }
+        }
+
         final String verificationCode = generateSecureVerificationCode();
 
         cleanupExpiredCodes();
@@ -66,6 +78,17 @@ public class AuthenticationService {
     @Transactional
     public Optional<User> verifyCodeAndAuthenticate(final String email, final String code, final String clientIp) {
         validateRateLimit(email, clientIp, RateLimitingService.RateLimitType.CODE_VERIFY);
+
+        final Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isPresent()) {
+            final User user = userOpt.get();
+
+            if (user.isAccountLocked()) {
+                handleLockedAccount(email, clientIp);
+                return Optional.empty();
+            }
+        }
 
         final Optional<VerificationCode> verificationCodeOpt = findAndValidateCode(email, code);
 
@@ -139,6 +162,7 @@ public class AuthenticationService {
         final LocalDateTime windowStart = now.minusMinutes(VERIFICATION_ATTEMPT_WINDOW_MINUTES);
 
         final LocalDateTime lastAttempt = lastFailedAttempt.get(attemptKey);
+
         if (lastAttempt != null && lastAttempt.isBefore(windowStart)) {
             failedVerificationAttempts.remove(attemptKey);
             lastFailedAttempt.remove(attemptKey);
@@ -160,6 +184,121 @@ public class AuthenticationService {
                     SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
                     email,
                     String.format("Multiple failed verification attempts (%d) before success", attempts),
+                    clientIp
+            );
+        }
+    }
+
+    private void handleLockedAccount(final String email, final String clientIp) {
+        securityAuditService.logSecurityEvent(
+                SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                email,
+                "Attempted login on locked account",
+                clientIp
+        );
+
+        emailService.sendSecurityAlert(
+                email,
+                "Account Locked - Login Attempt",
+                String.format("Someone attempted to access your locked account from IP address %s. " +
+                                "Your account was locked due to multiple failed verification attempts. " +
+                                "The lock will automatically expire, or you can contact support if this wasn't you.",
+                        clientIp),
+                clientIp
+        );
+
+        log.warn("Login attempt on locked account for user: {} from IP: {}", SecurityUtil.maskEmail(email), clientIp);
+    }
+
+    private void handleFailedVerification(final String email, final String clientIp, final String reason) {
+        securityAuditService.logFailedAuthentication(email, clientIp, reason);
+        log.warn("Authentication failed for {}: {}", SecurityUtil.maskEmail(email), reason);
+
+        final Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isPresent()) {
+            final User user = userOpt.get();
+
+            user.setFailedLoginAttempts(user.getFailedLoginAttempts() + 1);
+
+            final int maxFailedAttempts = applicationProperties.getSecurity().getFailedAttempts().getMax();
+            final int lockDurationMinutes = applicationProperties.getSecurity().getAccountLock().getDurationMinutes();
+
+            log.warn("Failed verification attempt #{} for user: {} from IP: {}",
+                    user.getFailedLoginAttempts(), SecurityUtil.maskEmail(email), clientIp);
+
+            if (user.getFailedLoginAttempts() >= maxFailedAttempts) {
+                user.lockAccount(lockDurationMinutes);
+                userRepository.save(user);
+
+                emailService.sendSecurityAlert(
+                        email,
+                        "Account Temporarily Locked",
+                        String.format("Your account has been temporarily locked for %d minutes due to %d failed verification attempts. " +
+                                        "The most recent attempt was from IP address %s. " +
+                                        "If this wasn't you, your account may be under attack. " +
+                                        "The lock will automatically expire after %d minutes, or you can contact support.",
+                                lockDurationMinutes, maxFailedAttempts, clientIp, lockDurationMinutes),
+                        clientIp
+                );
+
+                securityAuditService.logSecurityEvent(
+                        SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                        email,
+                        String.format("Account locked due to %d failed verification attempts", maxFailedAttempts),
+                        clientIp
+                );
+
+                log.warn("Account locked for user: {} after {} failed attempts from IP: {}",
+                        SecurityUtil.maskEmail(email), maxFailedAttempts, clientIp);
+            } else {
+                userRepository.save(user);
+
+                final int remaining = maxFailedAttempts - user.getFailedLoginAttempts();
+
+                if (remaining <= 2) {
+                    emailService.sendSecurityAlert(
+                            email,
+                            "Multiple Failed Login Attempts",
+                            String.format("We detected %d failed verification attempts from IP address %s. " +
+                                            "You have %d attempts remaining before your account is temporarily locked. " +
+                                            "If this wasn't you, someone may be trying to access your account.",
+                                    user.getFailedLoginAttempts(), clientIp, remaining),
+                            clientIp
+                    );
+                }
+            }
+        }
+
+        final String attemptKey = email + ":" + clientIp;
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime windowStart = now.minusMinutes(VERIFICATION_ATTEMPT_WINDOW_MINUTES);
+
+        final LocalDateTime lastAttempt = lastFailedAttempt.get(attemptKey);
+
+        if (lastAttempt != null && lastAttempt.isBefore(windowStart)) {
+            failedVerificationAttempts.remove(attemptKey);
+            lastFailedAttempt.remove(attemptKey);
+        }
+
+        final int sessionAttempts = failedVerificationAttempts.merge(attemptKey, 1, Integer::sum);
+        lastFailedAttempt.put(attemptKey, now);
+
+        if (sessionAttempts >= MAX_FAILED_VERIFICATION_ATTEMPTS) {
+            emailService.sendSecurityAlert(
+                    email,
+                    "Multiple Failed Verification Attempts in Session",
+                    String.format("We detected %d failed verification attempts in the last %d minutes from IP address %s. " +
+                                    "If this wasn't you, your account may be under attack. " +
+                                    "Consider using a different device or network if you suspect malicious activity.",
+                            sessionAttempts, VERIFICATION_ATTEMPT_WINDOW_MINUTES, clientIp),
+                    clientIp
+            );
+
+            securityAuditService.logSecurityEvent(
+                    SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
+                    email,
+                    String.format("Too many failed verification attempts in session: %d in %d minutes", sessionAttempts, VERIFICATION_ATTEMPT_WINDOW_MINUTES),
                     clientIp
             );
         }
@@ -223,45 +362,6 @@ public class AuthenticationService {
         return verificationCode.getAttemptCount() >= maxAttempts;
     }
 
-    private void handleFailedVerification(final String email, final String clientIp, final String reason) {
-        securityAuditService.logFailedAuthentication(email, clientIp, reason);
-        log.warn("Authentication failed for {}: {}", SecurityUtil.maskEmail(email), reason);
-
-        final String attemptKey = email + ":" + clientIp;
-        final LocalDateTime now = LocalDateTime.now();
-        final LocalDateTime windowStart = now.minusMinutes(VERIFICATION_ATTEMPT_WINDOW_MINUTES);
-
-        final LocalDateTime lastAttempt = lastFailedAttempt.get(attemptKey);
-        if (lastAttempt != null && lastAttempt.isBefore(windowStart)) {
-            failedVerificationAttempts.remove(attemptKey);
-            lastFailedAttempt.remove(attemptKey);
-        }
-
-        final int attempts = failedVerificationAttempts.merge(attemptKey, 1, Integer::sum);
-        lastFailedAttempt.put(attemptKey, now);
-
-        log.warn("Failed verification attempt #{} for user: {} from IP: {}", attempts, SecurityUtil.maskEmail(email), clientIp);
-
-        if (attempts >= MAX_FAILED_VERIFICATION_ATTEMPTS) {
-            emailService.sendSecurityAlert(
-                    email,
-                    "Multiple Failed Verification Attempts",
-                    String.format("We detected %d failed verification attempts in the last %d minutes from IP address %s. " +
-                                    "If this wasn't you, your account may be under attack. " +
-                                    "Consider using a different device or network if you suspect malicious activity.",
-                            attempts, VERIFICATION_ATTEMPT_WINDOW_MINUTES, clientIp),
-                    clientIp
-            );
-
-            securityAuditService.logSecurityEvent(
-                    SecurityAuditService.SecurityEventType.SUSPICIOUS_ACTIVITY,
-                    email,
-                    String.format("Too many failed verification attempts: %d in %d minutes", attempts, VERIFICATION_ATTEMPT_WINDOW_MINUTES),
-                    clientIp
-            );
-        }
-    }
-
     private Optional<User> findOrCreateUser(final String email, final String clientIp) {
         final Optional<User> existingUser = userRepository.findByEmail(email);
 
@@ -280,14 +380,7 @@ public class AuthenticationService {
             final User user = createNewUser(email, clientIp);
             final User savedUser = userRepository.save(user);
 
-            emailService.sendSecurityAlert(
-                    email,
-                    "New Account Created",
-                    String.format("Welcome to %s! Your account was just created from IP address %s. " +
-                                    "If you didn't create this account, please contact support immediately.",
-                            applicationProperties.getName(), clientIp),
-                    clientIp
-            );
+            emailService.sendWelcomeEmail(email, clientIp);
 
             securityAuditService.logSuccessfulAuthentication(email, clientIp);
             log.info("New user created: {}", SecurityUtil.maskEmail(email));

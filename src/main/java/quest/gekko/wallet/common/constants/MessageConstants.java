@@ -19,6 +19,7 @@ public final class MessageConstants {
     public static final String VAULT_LIMIT_REACHED = "Maximum number of passwords reached for this account";
     public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again.";
     public static final String MASTER_PASSWORD_FAILED = "Incorrect master password. Please try again.";
+    public static final String ACCOUNT_LOCKED = "Account is temporarily locked due to multiple failed attempts. Please wait or contact support.";
     public static final String TOO_MANY_UNLOCK_ATTEMPTS = "Too many failed unlock attempts. Please wait before trying again.";
 
     // Validation messages
